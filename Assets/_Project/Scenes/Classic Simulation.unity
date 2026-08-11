@@ -228,6 +228,7 @@ GameObject:
   - component: {fileID: 963194228}
   - component: {fileID: 963194227}
   - component: {fileID: 963194226}
+  - component: {fileID: 963194229}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -252,8 +253,8 @@ Camera:
   m_GameObject: {fileID: 963194225}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_ClearFlags: 2
+  m_BackGroundColor: {r: 0.007843138, g: 0.043137256, b: 0.078431375, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -302,13 +303,33 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -30}
+  m_LocalPosition: {x: 0, y: 1, z: -22}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &963194229
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b31b9b5dcd374d34f90ef12790cd8c3b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  boidManager: {fileID: 1378930060}
+  isFollowing: 1
+  targetBoidIndex: 0
+  offset: {x: 0, y: 1, z: -1}
+  positionSmoothTime: 0.3
+  lookAheadDistance: 3
+  rotationSpeed: 4
+  turnRelaxation: 2
 --- !u!1 &1378930059
 GameObject:
   m_ObjectHideFlags: 0
@@ -338,20 +359,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5cb269f7551bdb4089a4a77b40522d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InitialNumberOfBoids: 1000
+  InitialNumberOfBoids: 300
   SpawnRadius: 10
-  BoidPrefab: {fileID: 4733471387370755981, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
+  BoidPrefab: {fileID: 79079474650735835, guid: 348fd08341885724ab9e5c4ead89f09d, type: 3}
+  cam: {fileID: 963194229}
   CohesionWeight: 1
   SeparationWeight: 1
   AlignmentWeight: 1
-  PerceptionRadius: 10
-  MaxSpeed: 10
-  MaxForce: 5
+  PerceptionRadius: 4
+  MaxSpeed: 7
+  MaxForce: 1
   InitialSpeed: 5
   boundsCenter: {x: 0, y: 0, z: 0}
   boundsRadius: 15
-  boundaryWeight: 2
-  cellSize: 5
+  boundaryWeight: 0.1
+  rotationSpeed: 540
+  simulationWithArrows: 1
+  showBoundRadius: 0
+  showLineVelocity: 1
+  showLineVelocityAll: 0
+  showLinePosition: 0
+  showLinePositionAll: 0
+  cellSize: 2
 --- !u!4 &1378930061
 Transform:
   m_ObjectHideFlags: 0
@@ -382,6 +411,14 @@ PrefabInstance:
     - target: {fileID: 4733471387370755981, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
       propertyPath: m_IsActive
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5111822824754662415, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5111822824754662415, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
+      propertyPath: m_CullingMode
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 5875184833710534559, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
       propertyPath: m_RootOrder
