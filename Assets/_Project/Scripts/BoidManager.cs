@@ -2,20 +2,43 @@ using UnityEngine;
 using System.Collections.Generic;
 
 
+public enum Species : byte { Fish, Calamri, Crocodile }
+
 public struct Boid 
 { 
     public Vector3 pos;
     public Vector3 vel;
-    public Vector3 acc;
+    
+    public Species species; 
 };
+
+// public struct SpeciesSettings{
+//     public string name;
+
+//     public GameObject preFab;
+
+//     [Header("Weights")]
+//     public float coheisonWeight;
+//     public float SeparationWeight;
+//     public float 
+
+
+
+// }
 
 
 public class BoidManager : MonoBehaviour
 {
     [Header("Boid Settings")]
     public int InitialNumberOfBoids = 100;
+    public int numberOfCalamari = 10;
+    public int numberOfCrocodiles = 10;
+
     public float SpawnRadius = 10f;
-    public GameObject BoidPrefab;
+    public GameObject FishPrefab;
+    public GameObject CalamriPrefab;
+    public GameObject CrocodilePrefab;
+
     public BoidCameraFollow cam;
 
     public float CohesionWeight = 1f;
@@ -78,6 +101,9 @@ public class BoidManager : MonoBehaviour
     private Boid[] boids;
     private Transform[] boidTransforms;
 
+    private Boid[] boids2;
+    private Transform[] boidTransforms2;
+
     [Header("Obstacle Avoidance")]
     public LayerMask obstacleLayer;
     public LayerMask attractLayer;
@@ -85,7 +111,7 @@ public class BoidManager : MonoBehaviour
     public float avoidWeight = 5f;
 
     public float attractDistance = 5f;
-    public float attractionWeight = 5f;
+    public float attractionWeight = 5f; 
 
     public float fishBoundsMargin = 1.5f;
 
@@ -97,8 +123,26 @@ public class BoidManager : MonoBehaviour
     public bool showObstacleAvoidance = false;
     public bool showAllObstacleAvoidance = false;
 
+    [Header("Underwater Current Settings")]
+    public bool applyCurrents = false;
+
+    public float currentScale = 0.05f; // Frequency: lower values create large, sweeping currents
+    public float currentSpeed = 0.2f;  // Time multiplier: how fast currents shift over time
+    public float currentWeight = 2f;   // How strongly the current pushes the fish
+
+    [Header("Current Visualizer (Runtime)")]
+    public bool visualizeCurrent = false;
+    public int gridRadiusCount = 3; // 3 in each direction = 7x7x7 grid (343 total arrows)
+    public float gridStep = 4f;       // Distance between vectors
+    public float arrowThickness = 0.08f;
+
+    private Transform[] currentArrows;
+    private MeshRenderer[] currentArrowRenderers;
+
 
     void Start(){
+
+
         boids = new Boid[InitialNumberOfBoids];
         boidTransforms = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) velocityArrows = new Transform[InitialNumberOfBoids];
@@ -131,13 +175,30 @@ public class BoidManager : MonoBehaviour
             Vector3 spawnPos = getRandomSpawn();
             Vector3 spawnVel = getRandomDirection() * InitialSpeed; // randomDir * initialSpeed
 
-            GameObject newBoid = Instantiate(BoidPrefab, spawnPos, Quaternion.LookRotation(spawnVel));
 
-            boidTransforms[i] = newBoid.transform;
+            GameObject newBoid;
 
             boids[i].pos = spawnPos;
             boids[i].vel = spawnVel;
-            boids[i].acc = Vector3.zero;
+
+            // The spicies
+            if(numberOfCalamari > 0) {
+                boids[i].species = Species.Calamri;
+                newBoid = Instantiate(CalamriPrefab, spawnPos, Quaternion.LookRotation(spawnVel));
+                numberOfCalamari--;
+            }else if(numberOfCrocodiles > 0) {
+                boids[i].species = Species.Crocodile;
+                newBoid = Instantiate(CrocodilePrefab, spawnPos, Quaternion.LookRotation(spawnVel));
+                numberOfCrocodiles--;
+            }else {
+                boids[i].species = Species.Fish;
+                newBoid = Instantiate(FishPrefab, spawnPos, Quaternion.LookRotation(spawnVel));
+            }
+
+            boidTransforms[i] = newBoid.transform;
+            boidTransforms[i].GetComponent<Animator>().Play("Teardrop_L", 1); // layer 1
+
+
 
             // if( simulationWithArrows ) {
             //     LineRenderer lr = newBoid.AddComponent<LineRenderer>();
@@ -214,6 +275,26 @@ public class BoidManager : MonoBehaviour
 
             }
         }
+
+        // current vector arrows
+        if(simulationWithArrows) {
+            int totalArrows = (gridRadiusCount * 2 + 1) * (gridRadiusCount * 2 + 1) * (gridRadiusCount * 2 + 1);
+            currentArrows = new Transform[totalArrows];
+            currentArrowRenderers = new MeshRenderer[totalArrows];
+
+            for (int i = 0; i < totalArrows; i++)
+            {
+                GameObject cyl = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                Destroy(cyl.GetComponent<Collider>());
+                
+                MeshRenderer rend = cyl.GetComponent<MeshRenderer>();
+                rend.material = new Material(Shader.Find("Sprites/Default")); // Unlit shader
+                
+                cyl.SetActive(false);
+                currentArrows[i] = cyl.transform;
+                currentArrowRenderers[i] = rend;
+            }
+        }
     }
 
     private Vector3 getRandomDirection(){
@@ -260,9 +341,12 @@ public class BoidManager : MonoBehaviour
             int neighborCount = 0;
 
             foreach ( int neighborIdx in neighbors)  {
+
                 Boid neighbor = boids[neighborIdx];
                 float dist = Vector3.Distance(boid.pos, neighbor.pos);
             
+
+
                 if(dist > 0 && dist < PerceptionRadius) { 
                     centerOfMass += neighbor.pos;
                     avgVelocity += neighbor.vel;
@@ -307,6 +391,12 @@ public class BoidManager : MonoBehaviour
                 Vector3 boundaryForce = SteerTowards(boid, offsetToCenter) * excessDistance;
                 
                 accel += boundaryForce * boundaryWeight;
+            }
+
+            // Apply currents
+            if(applyCurrents) {
+                Vector3 currentForce = GetCurrentForce(boid.pos);
+                accel += currentForce * currentWeight;
             }
 
             // Apply physics
@@ -462,6 +552,9 @@ public class BoidManager : MonoBehaviour
 
         }
 
+        // Current arrows
+        if(simulationWithArrows) UpdateCurrentVisualizer();
+
 
     }
 
@@ -614,5 +707,82 @@ public class BoidManager : MonoBehaviour
         }
 
         return attractForce;
+    }
+
+    // For the currents
+    private Vector3 GetCurrentForce(Vector3 position)
+    {
+        float time = Time.time * currentSpeed;
+
+        // Sample 2D Perlin noise across offsetting coordinate pairs.
+        // Subtract 0.5f and multiply by 2 to map the standard [0,1] noise range to [-1, 1].
+        float x = (Mathf.PerlinNoise(position.y * currentScale + 10f, position.z * currentScale + time) - 0.5f) * 2f;
+        float y = (Mathf.PerlinNoise(position.z * currentScale + 20f, position.x * currentScale + time) - 0.5f) * 2f;
+        float z = (Mathf.PerlinNoise(position.x * currentScale + 30f, position.y * currentScale + time) - 0.5f) * 2f;
+
+        return new Vector3(x, y, z);
+    }
+
+    private void UpdateCurrentVisualizer()
+    {
+        // Turn off arrows if the toggle is disabled
+        if (!visualizeCurrent)
+        {
+            if (currentArrows != null && currentArrows.Length > 0 && currentArrows[0].gameObject.activeSelf)
+            {
+                for (int i = 0; i < currentArrows.Length; i++)
+                    currentArrows[i].gameObject.SetActive(false);
+            }
+            return;
+        }
+
+        // Target the hero boid position
+        Vector3 center = Vector3.zero;
+        
+        // Snap the grid center to stepped increments so arrows don't slide with the fish
+        center.x = Mathf.Floor(center.x / gridStep) * gridStep;
+        center.y = Mathf.Floor(center.y / gridStep) * gridStep;
+        center.z = Mathf.Floor(center.z / gridStep) * gridStep;
+
+        int index = 0;
+        for (int x = -gridRadiusCount; x <= gridRadiusCount; x++)
+        {
+            for (int y = -gridRadiusCount; y <= gridRadiusCount; y++)
+            {
+                for (int z = -gridRadiusCount; z <= gridRadiusCount; z++)
+                {
+                    Vector3 samplePos = center + new Vector3(x * gridStep, y * gridStep, z * gridStep);
+                    Vector3 force = GetCurrentForce(samplePos);
+                    float strength = force.magnitude;
+
+                    Transform arrow = currentArrows[index];
+                    MeshRenderer rend = currentArrowRenderers[index];
+
+                    if (strength > 0.01f)
+                    {
+                        arrow.gameObject.SetActive(true);
+                        
+                        // Rotate cylinder along the noise force direction
+                        arrow.rotation = Quaternion.FromToRotation(Vector3.up, force.normalized);
+                        
+                        // Scale length proportional to noise strength
+                        float length = strength * 1.5f;
+                        arrow.localScale = new Vector3(arrowThickness, length / 2f, arrowThickness);
+                        
+                        // Center cylinder along vector direction
+                        arrow.position = samplePos + (force.normalized * (length / 2f));
+
+                        // Heatmap transition: Cyan (weak force) to Magenta (strong force)
+                        rend.material.color = Color.Lerp(Color.cyan, Color.magenta, strength);
+                    }
+                    else
+                    {
+                        arrow.gameObject.SetActive(false);
+                    }
+
+                    index++;
+                }
+            }
+        }
     }
 }

@@ -141,7 +141,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!65 &220277823
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -445,7 +445,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!65 &770212810
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -550,7 +550,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &784686842
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -768,7 +768,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &968486740
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -810,7 +810,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
+  - {fileID: 2100000, guid: 8bbcb6f1a6ce60b49a16bd9ad83afe9c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -849,8 +849,8 @@ Transform:
   m_GameObject: {fileID: 968486739}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 1.4465084, y: 10.5, z: 8.7}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 10, y: 10, z: 10}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 10
@@ -884,9 +884,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5cb269f7551bdb4089a4a77b40522d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InitialNumberOfBoids: 200
+  InitialNumberOfBoids: 30
+  numberOfCalamari: 10
+  numberOfCrocodiles: 10
   SpawnRadius: 10
-  BoidPrefab: {fileID: 79079474650735835, guid: 348fd08341885724ab9e5c4ead89f09d, type: 3}
+  FishPrefab: {fileID: 79079474650735835, guid: 348fd08341885724ab9e5c4ead89f09d, type: 3}
+  CalamriPrefab: {fileID: 4733471387370755981, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
+  CrocodilePrefab: {fileID: 6690567954782152404, guid: 13c373ff6ff63ec4e9851b5c1f40bfa4, type: 3}
   cam: {fileID: 963194229}
   CohesionWeight: 0.8
   SeparationWeight: 2.5
@@ -922,10 +926,19 @@ MonoBehaviour:
   avoidDistance: 5
   avoidWeight: 5
   attractDistance: 5
+  attractionWeight: 5
   fishBoundsMargin: 1.5
   obstacleWarningMaterial: {fileID: 2100000, guid: 19b683db5fe9c0c42b20159c1aa3549d, type: 2}
   showObstacleAvoidance: 1
   showAllObstacleAvoidance: 1
+  applyCurrents: 0
+  currentScale: 0.05
+  currentSpeed: 0.2
+  currentWeight: 2
+  visualizeCurrent: 0
+  gridRadiusCount: 10
+  gridStep: 2
+  arrowThickness: 0.08
 --- !u!4 &1378930061
 Transform:
   m_ObjectHideFlags: 0
@@ -959,7 +972,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &1761210124
 SphereCollider:
   m_ObjectHideFlags: 0
