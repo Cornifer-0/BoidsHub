@@ -22,7 +22,8 @@ public class BoidManager : MonoBehaviour
     public float SeparationWeight = 1f;
     public float AlignmentWeight = 1f;
 
-    public float PerceptionRadius = 10f;
+    public float PerceptionRadius = 10f; // coheison + alignment
+    public float PerceptionRadiusSeparation = 3f;
 
     public float MaxSpeed = 10f;
     public float MaxForce = 5f;
@@ -47,8 +48,27 @@ public class BoidManager : MonoBehaviour
     public bool showLinePosition = false;
     public bool showLinePositionAll = false;
 
+    [Header("Extra Visuals")]
+
+    public Material transparentMaterialSphere;
+    public Material transparentMaterialChunk;
+    private Transform[] perceptionSpheres;
+    private MeshRenderer[] activeChunkCubes = new MeshRenderer[27];
+    
+
+    public bool showVisualRange = false;
+    public bool showVisualRangeAll = true;
+    public bool showChunks = false;
+
     private Transform[] velocityArrows;
     private Transform[] positionArrows;
+
+    [Header("Organic Grid Trail")]
+    public int maxTrailChunks = 50;
+
+    private Queue<MeshRenderer> chunkPool = new Queue<MeshRenderer>();
+    private Queue<Vector3Int> activeChunkHistory = new Queue<Vector3Int>();
+    private Dictionary<Vector3Int, MeshRenderer> activeChunksMap = new Dictionary<Vector3Int, MeshRenderer>();
 
     [Header("Grid Settings")]
     public  float cellSize = 5f;
@@ -58,12 +78,52 @@ public class BoidManager : MonoBehaviour
     private Boid[] boids;
     private Transform[] boidTransforms;
 
+    [Header("Obstacle Avoidance")]
+    public LayerMask obstacleLayer;
+    public LayerMask attractLayer;
+    public float avoidDistance = 5f;
+    public float avoidWeight = 5f;
+
+    public float attractDistance = 5f;
+
+    public float fishBoundsMargin = 1.5f;
+
+    [Header("Avoidance / Attractor Visualizers")]
+    public Material obstacleWarningMaterial;
+    private Transform[] marginHitSpheres; // one per fish
+    private Transform[] obstacleArrows;
+
+    public bool showObstacleAvoidance = false;
+    public bool showAllObstacleAvoidance = false;
+
 
     void Start(){
         boids = new Boid[InitialNumberOfBoids];
         boidTransforms = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) velocityArrows = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) positionArrows = new Transform[InitialNumberOfBoids];
+        if ( simulationWithArrows ) perceptionSpheres = new Transform[InitialNumberOfBoids];
+        if ( simulationWithArrows ) marginHitSpheres = new Transform[InitialNumberOfBoids];
+        if ( simulationWithArrows ) obstacleArrows = new Transform[InitialNumberOfBoids];
+
+        // Generate the 50 cubes for our pool
+        float visualSize = cellSize * 0.95f; // 5% gap
+
+        for (int i = 0; i < maxTrailChunks; i++)
+        {
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Destroy(cube.GetComponent<Collider>()); 
+            
+            MeshRenderer rend = cube.GetComponent<MeshRenderer>();
+            rend.material = transparentMaterialChunk;
+            
+            cube.transform.localScale = new Vector3(visualSize, visualSize, visualSize);
+            cube.SetActive(false);
+            
+            // Add to our available pool
+            chunkPool.Enqueue(rend);
+        }
+
 
         for(int i = 0; i < InitialNumberOfBoids; i++) {
             // Ger random pos
@@ -113,8 +173,45 @@ public class BoidManager : MonoBehaviour
                 renderer2.material.color = Color.green;
 
                 positionArrows[i] = cy2.transform;
-            }
 
+                // Obstacle
+                GameObject obs = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+
+                Destroy(obs.GetComponent<Collider>());
+
+                MeshRenderer renderer3 = obs.GetComponent<MeshRenderer>();
+                renderer3.material = new Material(Shader.Find("Sprites/Default"));
+                renderer3.material.color = Color.yellow;
+
+                obstacleArrows[i] = obs.transform;
+                obstacleArrows[i].gameObject.SetActive(false);
+
+                //Spheres of perceptions
+                GameObject ps = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Destroy(ps.GetComponent<Collider>());
+                ps.GetComponent<MeshRenderer>().material = transparentMaterialSphere;
+
+                perceptionSpheres[i] = ps.transform;
+                perceptionSpheres[i].gameObject.SetActive(false);
+
+
+                // Obstacle avoidance
+                GameObject hitSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Destroy(hitSphere.GetComponent<Collider>());
+
+                // 2. Apply the warning material
+                hitSphere.GetComponent<MeshRenderer>().material = obstacleWarningMaterial;
+
+                // 3. Set the scale perfectly to your margin
+                // Remember: Scale is diameter, so we multiply the radius by 2!
+                float marginDiameter = fishBoundsMargin * 2f;
+                hitSphere.transform.localScale = new Vector3(marginDiameter, marginDiameter, marginDiameter);
+
+                // 4. Save reference and hide it by default
+                marginHitSpheres[i] = hitSphere.transform;
+                marginHitSpheres[i].gameObject.SetActive(false);
+
+            }
         }
     }
 
@@ -169,7 +266,9 @@ public class BoidManager : MonoBehaviour
                     centerOfMass += neighbor.pos;
                     avgVelocity += neighbor.vel;
 
-                    separationVector += (boid.pos - neighbor.pos).normalized / dist;
+                    if (dist < PerceptionRadiusSeparation){
+                        separationVector += (boid.pos - neighbor.pos).normalized / dist;
+                    }
                     neighborCount++;
                 }
 
@@ -187,6 +286,12 @@ public class BoidManager : MonoBehaviour
                 accel += cohesionForce * CohesionWeight;
                 accel += alignmentForce * AlignmentWeight;
                 accel += separationForce * SeparationWeight;
+
+                // Add the new Obstacle Avoidance rule!
+                Vector3 avoidance = CalculateObstacleAvoidance(boid.pos, boid.vel);
+                //Vector3 attraction = CalculateObstacleAvoidance(boid.pos, boid.vel);
+                accel += avoidance * avoidWeight;
+                //accel += attraction * attractWeight;
             }
 
             Vector3 offsetToCenter = boundsCenter - boid.pos;
@@ -260,6 +365,96 @@ public class BoidManager : MonoBehaviour
                     DrawArrow(Vector3.zero, boid.pos, i, positionArrows[i]);
                 }
 
+            }
+
+            bool isTargetFish = (cam.targetBoidIndex == i);
+
+            if ( showVisualRange && isTargetFish || showVisualRangeAll ) { 
+                perceptionSpheres[i].gameObject.SetActive(true);
+                perceptionSpheres[i].position = boid.pos;
+
+                float diamater = PerceptionRadius * 2f;
+                perceptionSpheres[i].localScale = new Vector3(diamater, diamater, diamater);
+            }
+
+            if (isTargetFish && showChunks)
+            {
+                int fishX = Mathf.FloorToInt(boid.pos.x / cellSize);
+                int fishY = Mathf.FloorToInt(boid.pos.y / cellSize);
+                int fishZ = Mathf.FloorToInt(boid.pos.z / cellSize);
+
+                for (int xOffset = -1; xOffset <= 1; xOffset++)
+                {
+                    for (int yOffset = -1; yOffset <= 1; yOffset++)
+                    {
+                        for (int zOffset = -1; zOffset <= 1; zOffset++)
+                        {
+                            Vector3Int targetCoord = new Vector3Int(fishX + xOffset, fishY + yOffset, fishZ + zOffset);
+
+                            if (activeChunksMap.ContainsKey(targetCoord)) continue;
+
+                            if (chunkPool.Count == 0)
+                            {
+                                Vector3Int oldestCoord = activeChunkHistory.Dequeue();
+                                MeshRenderer oldestCube = activeChunksMap[oldestCoord];
+                                
+                                activeChunksMap.Remove(oldestCoord);
+                                chunkPool.Enqueue(oldestCube); // Put it back in the bin
+                            }
+
+                            MeshRenderer newCube = chunkPool.Dequeue();
+                            
+                            Vector3 chunkCenter = new Vector3(
+                                targetCoord.x * cellSize + (cellSize / 2f),
+                                targetCoord.y * cellSize + (cellSize / 2f),
+                                targetCoord.z * cellSize + (cellSize / 2f)
+                            );
+                            
+                            newCube.transform.position = chunkCenter;
+                            newCube.gameObject.SetActive(true);
+
+                            newCube.material.color = new Color(0f, 0.5f, 1f, 0.2f);
+
+                            activeChunksMap.Add(targetCoord, newCube);
+                            activeChunkHistory.Enqueue(targetCoord);
+                        }
+                    }
+                }
+            }
+
+            if ( showAllObstacleAvoidance || (showObstacleAvoidance && isTargetFish) ) 
+            { 
+                Vector3 forward = boid.vel.normalized;
+
+                // Cast the exact same sphere as your physics logic
+                if (Physics.SphereCast(boid.pos, fishBoundsMargin, forward, out RaycastHit hit, avoidDistance, obstacleLayer))
+                {
+                    // 1. SHOW THE MARGIN SPHERE
+                    marginHitSpheres[i].gameObject.SetActive(true);
+                    
+                    // Position the sphere exactly where the SphereCast touched the rock
+                    marginHitSpheres[i].position = hit.point + (hit.normal * fishBoundsMargin);
+
+                    // 2. DRAW THE ESCAPE FORCE ARROW
+                    float urgency = 1.0f - (hit.distance / avoidDistance);
+                    float panicMultiplier = urgency * urgency * 5f;
+                    Vector3 visualForce = hit.normal * (urgency + panicMultiplier);
+
+                    obstacleArrows[i].gameObject.SetActive(true);
+                    DrawArrow(boid.pos, boid.pos + visualForce, i, obstacleArrows[i]); 
+                }
+                else
+                {
+                    // Hide both if the water ahead is clear!
+                    marginHitSpheres[i].gameObject.SetActive(false);
+                    obstacleArrows[i].gameObject.SetActive(false); // FIXED!
+                }
+            }
+            else 
+            {
+                // Hide both if the visualizer toggle is turned off!
+                marginHitSpheres[i].gameObject.SetActive(false);
+                obstacleArrows[i].gameObject.SetActive(false); // ADDED!
             }
 
 
@@ -355,5 +550,47 @@ public class BoidManager : MonoBehaviour
         int z = Mathf.FloorToInt(pos.z/cellSize);
 
         return new Vector3Int(x, y, z);
+    }
+
+    private Vector3 CalculateObstacleAvoidance(Vector3 position, Vector3 velocity)
+    {
+        Vector3 avoidForce = Vector3.zero;
+        
+        // Only proceed if the fish is actually moving
+        if (velocity.sqrMagnitude < 0.01f) return avoidForce;
+
+        Vector3 forward = velocity.normalized;
+
+        // We use fishBoundsMargin as the radius of the SphereCast.
+        // This creates an invisible tube of protection exactly the width of your 3D model.
+        if (Physics.SphereCast(position, fishBoundsMargin, forward, out RaycastHit hit, avoidDistance, obstacleLayer))
+        {
+            // 1. Get the direction away from the wall
+            Vector3 awayFromWall = hit.normal;
+            
+            // 2. Base urgency (0 to 1 based on how close the wall is)
+            float urgency = 1.0f - (hit.distance / avoidDistance);
+            
+            // 3. The Anti-Clipping Multiplier!
+            // We square the urgency so the force spikes exponentially the closer it gets.
+            // This ensures a smooth turn at a distance, but a violently sharp turn if it's about to crash.
+            float panicMultiplier = urgency * urgency * 5f; 
+            
+            // 4. Apply the force
+            avoidForce = awayFromWall * (urgency + panicMultiplier);
+        }
+
+        // same with attraction
+
+        if (Physics.SphereCast(position, fishBoundsMargin, forward, out RaycastHit hit2, attractDistance, attractLayer))
+        {
+            Vector3 awayFromWall = hit2.normal;
+            
+            float urgency = 1.0f - (hit2.distance / attractDistance);
+            float panicMultiplier = urgency * urgency * 5f; 
+            avoidForce -= awayFromWall * (urgency + panicMultiplier);
+        }
+
+        return avoidForce;
     }
 }
