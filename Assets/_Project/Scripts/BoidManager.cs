@@ -85,6 +85,7 @@ public class BoidManager : MonoBehaviour
     public float avoidWeight = 5f;
 
     public float attractDistance = 5f;
+    public float attractionWeight = 5f;
 
     public float fishBoundsMargin = 1.5f;
 
@@ -289,8 +290,9 @@ public class BoidManager : MonoBehaviour
 
                 // Add the new Obstacle Avoidance rule!
                 Vector3 avoidance = CalculateObstacleAvoidance(boid.pos, boid.vel);
+                Vector3 attraction = CalculateAttractionForce(boid.pos);
                 //Vector3 attraction = CalculateObstacleAvoidance(boid.pos, boid.vel);
-                accel += avoidance * avoidWeight;
+                accel += avoidance * avoidWeight + attraction * attractionWeight;
                 //accel += attraction * attractWeight;
             }
 
@@ -582,15 +584,35 @@ public class BoidManager : MonoBehaviour
 
         // same with attraction
 
-        if (Physics.SphereCast(position, fishBoundsMargin, forward, out RaycastHit hit2, attractDistance, attractLayer))
+        return avoidForce;
+    }
+
+    private Vector3 CalculateAttractionForce(Vector3 position)
+    {
+        Vector3 attractForce = Vector3.zero;
+
+        // 1. Detect all attractors in a 360-degree sphere around the fish
+        Collider[] attractors = Physics.OverlapSphere(position, PerceptionRadius, attractLayer);
+
+        if (attractors.Length > 0)
         {
-            Vector3 awayFromWall = hit2.normal;
-            
-            float urgency = 1.0f - (hit2.distance / attractDistance);
-            float panicMultiplier = urgency * urgency * 5f; 
-            avoidForce -= awayFromWall * (urgency + panicMultiplier);
+            // Find the closest point on the nearest attractor
+            Vector3 closestPoint = attractors[0].ClosestPoint(position);
+            Vector3 vectorToAttractor = closestPoint - position;
+            float distance = vectorToAttractor.magnitude;
+
+            if (distance > 0.001f)
+            {
+                // Direction toward the attractor
+                Vector3 direction = vectorToAttractor / distance;
+
+                // Stronger pull when further away, easing up as it arrives
+                float pullStrength = distance / PerceptionRadius;
+
+                attractForce = direction * pullStrength;
+            }
         }
 
-        return avoidForce;
+        return attractForce;
     }
 }
