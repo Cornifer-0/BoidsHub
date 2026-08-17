@@ -12,19 +12,28 @@ public struct Boid
     public Species species; 
 };
 
-// public struct SpeciesSettings{
-//     public string name;
+[System.Serializable]
+public struct SpeciesSettings{
+    public string name;
 
-//     public GameObject preFab;
+    public GameObject preFab;
 
-//     [Header("Weights")]
-//     public float coheisonWeight;
-//     public float SeparationWeight;
-//     public float 
+    [Header("Weights")]
+    public float cohesionWeight;
+    public float separationWeight;
+    public float alignmentWeight;
 
+    public float attractionWeight;
+    public float avoidWeight;
 
+    [Header("Radii")]
+    public float perceptionRadius;
+    public float perceptionRadiusSeparation; // Radius for separation, should be lower
 
-// }
+    [Header("Limits")]
+    public float maxSpeed;
+    public float maxForce;
+}
 
 
 public class BoidManager : MonoBehaviour
@@ -34,22 +43,24 @@ public class BoidManager : MonoBehaviour
     public int numberOfCalamari = 10;
     public int numberOfCrocodiles = 10;
 
+    [Space(2)]
+    // 0 = fish, 1 = Calamari, 2=Crocodile ...
+    public SpeciesSettings[] speciesSettings;
+    [Space(2)]
+
     public float SpawnRadius = 10f;
-    public GameObject FishPrefab;
-    public GameObject CalamriPrefab;
-    public GameObject CrocodilePrefab;
 
     public BoidCameraFollow cam;
 
-    public float CohesionWeight = 1f;
-    public float SeparationWeight = 1f;
-    public float AlignmentWeight = 1f;
+    //public float CohesionWeight = 1f;
+    //public float SeparationWeight = 1f;
+    //public float AlignmentWeight = 1f;
 
-    public float PerceptionRadius = 10f; // coheison + alignment
-    public float PerceptionRadiusSeparation = 3f;
+    //public float PerceptionRadius = 10f; // coheison + alignment
+    //public float PerceptionRadiusSeparation = 3f;
 
-    public float MaxSpeed = 10f;
-    public float MaxForce = 5f;
+    //public float MaxSpeed = 10f;
+    //public float MaxForce = 5f;
     public float InitialSpeed = 5f;
 
     [Header("Boundary Settings")]
@@ -64,6 +75,7 @@ public class BoidManager : MonoBehaviour
     public bool simulationWithArrows = false;
 
     public bool showBoundRadius = false;
+    private Transform boundSphere;
 
     public bool showLineVelocity = false;
     public bool showLineVelocityAll = false;
@@ -108,10 +120,10 @@ public class BoidManager : MonoBehaviour
     public LayerMask obstacleLayer;
     public LayerMask attractLayer;
     public float avoidDistance = 5f;
-    public float avoidWeight = 5f;
+    //public float avoidWeight = 5f;
 
     public float attractDistance = 5f;
-    public float attractionWeight = 5f; 
+    //public float attractionWeight = 5f; 
 
     public float fishBoundsMargin = 1.5f;
 
@@ -145,6 +157,7 @@ public class BoidManager : MonoBehaviour
 
         boids = new Boid[InitialNumberOfBoids];
         boidTransforms = new Transform[InitialNumberOfBoids];
+
         if ( simulationWithArrows ) velocityArrows = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) positionArrows = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) perceptionSpheres = new Transform[InitialNumberOfBoids];
@@ -152,7 +165,17 @@ public class BoidManager : MonoBehaviour
         if ( simulationWithArrows ) obstacleArrows = new Transform[InitialNumberOfBoids];
 
         // Generate the 50 cubes for our pool
-        float visualSize = cellSize * 0.95f; // 5% gap
+        float visualSize = cellSize * 1f; // 5% gap
+
+        //Bound Sphere
+        GameObject bSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Destroy(bSphere.GetComponent<Collider>());
+        MeshRenderer bsrend = bSphere.GetComponent<MeshRenderer>();
+        bsrend.material = transparentMaterialChunk;
+        bSphere.transform.localScale = new Vector3(boundsRadius * 2.0f, boundsRadius * 2.0f, boundsRadius * 2.0f);
+        bSphere.SetActive(false);
+        boundSphere = bSphere.transform;
+
 
         for (int i = 0; i < maxTrailChunks; i++)
         {
@@ -175,25 +198,25 @@ public class BoidManager : MonoBehaviour
             Vector3 spawnPos = getRandomSpawn();
             Vector3 spawnVel = getRandomDirection() * InitialSpeed; // randomDir * initialSpeed
 
-
-            GameObject newBoid;
-
             boids[i].pos = spawnPos;
             boids[i].vel = spawnVel;
 
-            // The spicies
+
+            // The species
             if(numberOfCalamari > 0) {
                 boids[i].species = Species.Calamri;
-                newBoid = Instantiate(CalamriPrefab, spawnPos, Quaternion.LookRotation(spawnVel));
                 numberOfCalamari--;
             }else if(numberOfCrocodiles > 0) {
                 boids[i].species = Species.Crocodile;
-                newBoid = Instantiate(CrocodilePrefab, spawnPos, Quaternion.LookRotation(spawnVel));
                 numberOfCrocodiles--;
             }else {
                 boids[i].species = Species.Fish;
-                newBoid = Instantiate(FishPrefab, spawnPos, Quaternion.LookRotation(spawnVel));
             }
+            
+            SpeciesSettings settings = speciesSettings[(int)boids[i].species];
+            GameObject newBoid = Instantiate(settings.preFab, spawnPos, Quaternion.LookRotation(spawnVel));
+
+
 
             boidTransforms[i] = newBoid.transform;
             boidTransforms[i].GetComponent<Animator>().Play("Teardrop_L", 1); // layer 1
@@ -332,6 +355,8 @@ public class BoidManager : MonoBehaviour
             // Cohesion
             // Avarage center of mass = 1/N ( sum of positions )
             // Dcoheision = Pcenter - Pself
+
+            SpeciesSettings settings = speciesSettings[(int)boid.species];
             
             
             Vector3 centerOfMass = Vector3.zero;
@@ -347,11 +372,11 @@ public class BoidManager : MonoBehaviour
             
 
 
-                if(dist > 0 && dist < PerceptionRadius) { 
+                if(dist > 0 && dist < settings.perceptionRadius) { 
                     centerOfMass += neighbor.pos;
                     avgVelocity += neighbor.vel;
 
-                    if (dist < PerceptionRadiusSeparation){
+                    if (dist < settings.perceptionRadiusSeparation){
                         separationVector += (boid.pos - neighbor.pos).normalized / dist;
                     }
                     neighborCount++;
@@ -368,15 +393,15 @@ public class BoidManager : MonoBehaviour
                 Vector3 alignmentForce = SteerTowards(boid, avgVelocity);
                 Vector3 separationForce = SteerTowards(boid, separationVector);
 
-                accel += cohesionForce * CohesionWeight;
-                accel += alignmentForce * AlignmentWeight;
-                accel += separationForce * SeparationWeight;
+                accel += cohesionForce * settings.cohesionWeight;
+                accel += alignmentForce * settings.alignmentWeight;
+                accel += separationForce * settings.separationWeight;
 
                 // Add the new Obstacle Avoidance rule!
                 Vector3 avoidance = CalculateObstacleAvoidance(boid.pos, boid.vel);
-                Vector3 attraction = CalculateAttractionForce(boid.pos);
+                Vector3 attraction = CalculateAttractionForce(boid.pos, i);
                 //Vector3 attraction = CalculateObstacleAvoidance(boid.pos, boid.vel);
-                accel += avoidance * avoidWeight + attraction * attractionWeight;
+                accel += avoidance * settings.avoidWeight + attraction * settings.attractionWeight;
                 //accel += attraction * attractWeight;
             }
 
@@ -400,7 +425,7 @@ public class BoidManager : MonoBehaviour
             }
 
             // Apply physics
-            boid.vel = Vector3.ClampMagnitude(boid.vel + accel * Time.deltaTime, MaxSpeed);
+            boid.vel = Vector3.ClampMagnitude(boid.vel + accel * Time.deltaTime, settings.maxSpeed);
             boid.pos += boid.vel * Time.deltaTime;
 
             boids[i] = boid;
@@ -465,8 +490,10 @@ public class BoidManager : MonoBehaviour
                 perceptionSpheres[i].gameObject.SetActive(true);
                 perceptionSpheres[i].position = boid.pos;
 
-                float diamater = PerceptionRadius * 2f;
+                float diamater = settings.perceptionRadius * 2f;
                 perceptionSpheres[i].localScale = new Vector3(diamater, diamater, diamater);
+            }else{
+                perceptionSpheres[i].gameObject.SetActive(false);
             }
 
             if (isTargetFish && showChunks)
@@ -555,6 +582,10 @@ public class BoidManager : MonoBehaviour
         // Current arrows
         if(simulationWithArrows) UpdateCurrentVisualizer();
 
+        // bounds sphere
+        if(showBoundRadius) boundSphere.gameObject.SetActive(true);
+        else boundSphere.gameObject.SetActive(false);
+
 
     }
 
@@ -586,6 +617,8 @@ public class BoidManager : MonoBehaviour
     private Vector3 SteerTowards(Boid boid, Vector3 targetDirection) { 
         if (targetDirection == Vector3.zero) return Vector3.zero;
 
+        SpeciesSettings settings = speciesSettings[(int)boid.species];
+
         Vector3 currentDir = boid.vel.normalized;
         Vector3 desiredDir = targetDirection.normalized;
 
@@ -600,9 +633,9 @@ public class BoidManager : MonoBehaviour
             desiredDir = ( desiredDir + sideVector * 0.5f).normalized;
         }
 
-        Vector3 desiredVelocity = targetDirection.normalized * MaxSpeed;
+        Vector3 desiredVelocity = targetDirection.normalized * settings.maxSpeed;
         Vector3 steer = desiredVelocity - boid.vel;
-        return Vector3.ClampMagnitude(steer, MaxForce);
+        return Vector3.ClampMagnitude(steer, settings.maxForce);
     }
 
     private void UpdateGrid(){
@@ -680,12 +713,14 @@ public class BoidManager : MonoBehaviour
         return avoidForce;
     }
 
-    private Vector3 CalculateAttractionForce(Vector3 position)
+    private Vector3 CalculateAttractionForce(Vector3 position, int boidIndex)
     {
+        SpeciesSettings settings = speciesSettings[(int)boids[boidIndex].species];
+
         Vector3 attractForce = Vector3.zero;
 
         // 1. Detect all attractors in a 360-degree sphere around the fish
-        Collider[] attractors = Physics.OverlapSphere(position, PerceptionRadius, attractLayer);
+        Collider[] attractors = Physics.OverlapSphere(position, settings.perceptionRadius, attractLayer);
 
         if (attractors.Length > 0)
         {
@@ -700,7 +735,7 @@ public class BoidManager : MonoBehaviour
                 Vector3 direction = vectorToAttractor / distance;
 
                 // Stronger pull when further away, easing up as it arrives
-                float pullStrength = distance / PerceptionRadius;
+                float pullStrength = distance / settings.perceptionRadius;
 
                 attractForce = direction * pullStrength;
             }
