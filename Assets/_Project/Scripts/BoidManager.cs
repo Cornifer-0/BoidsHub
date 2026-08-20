@@ -10,6 +10,9 @@ public struct Boid
     public Vector3 vel;
     
     public Species species; 
+
+    public float health;
+    public bool isDead;
 };
 
 // Inetractions
@@ -22,6 +25,9 @@ public struct SpeciesSettings{
     public string name;
 
     public GameObject preFab;
+    public float bodyRadius;
+    public float maxHealth;
+    public float contactDamage;
 
     [Header("Weights")]
     public float cohesionWeight;
@@ -240,7 +246,7 @@ public class BoidManager : MonoBehaviour
             //boidTransforms[i].GetComponent<Animator>().Play("Teardrop_L", 1); // layer 1
 
             boidAnimators[i] = boidTransforms[i].GetComponent<Animator>();
-            currentEyeState[i] = "Eyes_blink"; 
+            currentEyeState[i] = "Eyes_Blink"; 
             boidAnimators[i].Play(currentEyeState[i], 1);
 
 
@@ -366,6 +372,38 @@ public class BoidManager : MonoBehaviour
 
         for(int i = 0; i < InitialNumberOfBoids; i++) {
             Boid boid = boids[i];
+            SpeciesSettings settings = speciesSettings[(int)boid.species];
+
+
+            if ( boid.isDead ) { 
+                // Apply currents
+                Vector3 accelD = Vector3.zero;
+                if(applyCurrents) {
+                    Vector3 currentForce = GetCurrentForce(boid.pos);
+                    accelD += currentForce * currentWeight;
+                }
+
+                // Apply physics
+                boid.vel = Vector3.ClampMagnitude(boid.vel + accelD * Time.deltaTime, settings.maxSpeed);
+                boid.pos += boid.vel * Time.deltaTime;
+
+                boids[i] = boid;
+
+                boidTransforms[i].position = boid.pos;
+                //if(boid.vel != Vector3.zero) boidTransforms[i].forward = boid.vel.normalized;
+
+                if (boid.vel != Vector3.zero)
+                {
+                    Quaternion targetRotation = Quaternion.LookRotation(boid.vel.normalized);
+                    boidTransforms[i].rotation = Quaternion.RotateTowards(
+                        boidTransforms[i].rotation, 
+                        targetRotation, 
+                        rotationSpeed * Time.deltaTime
+                    );
+                }
+                continue;
+            }
+
             Vector3Int myCell = GetCellCoord(boid.pos);
             List<int> neighbors = getNeighbors(myCell, i);
 
@@ -377,7 +415,6 @@ public class BoidManager : MonoBehaviour
             // Avarage center of mass = 1/N ( sum of positions )
             // Dcoheision = Pcenter - Pself
 
-            SpeciesSettings settings = speciesSettings[(int)boid.species];
             
             
             Vector3 centerOfMass = Vector3.zero;
@@ -394,9 +431,19 @@ public class BoidManager : MonoBehaviour
             //int neighborCount = 0;
 
             foreach ( int neighborIdx in neighbors)  {
-
                 Boid neighbor = boids[neighborIdx];
+
+                if ( boid.isDead || neighbor.isDead ) continue;
+
                 float dist = Vector3.Distance(boid.pos, neighbor.pos);
+                SpeciesSettings neighborSettings = speciesSettings[(int)neighbor.species];
+
+                float overlapDistance = (settings.bodyRadius + neighborSettings.bodyRadius) - dist;
+
+                if ( overlapDistance > 0 ) {
+                    HandleBoidCollision(i, neighborIdx);
+                } 
+
             
                 Interaction action = GetInteraction(boid.species, neighbor.species);
 
@@ -437,6 +484,8 @@ public class BoidManager : MonoBehaviour
                 if ( action != Interaction.Flock && dist < settings.perceptionRadiusSeparation ){
                     separationVector += (boid.pos - neighbor.pos).normalized / dist;
                 }
+
+                
 
 
             }
@@ -906,5 +955,103 @@ public class BoidManager : MonoBehaviour
         if ( me != Species.Crocodile && other == Species.Crocodile ) return Interaction.Flee;
 
         return Interaction.Ignore;
+    }
+
+    private void HandleBoidCollision(int indexA, int indexB) { 
+        Boid boidA = boids[indexA];
+        Boid boidB = boids[indexB];
+
+        Interaction relation = GetInteraction(boidA.species, boidB.species);
+
+        switch (relation)
+        {
+            case Interaction.Hunt:
+                ExecutePredation(indexA, indexB);
+                break;
+
+            case Interaction.Flee:
+                ExecutePredation(indexB, indexA);
+                break;
+
+            case Interaction.Flock:
+                ApplyImpactDamage(indexA, indexB);
+                break;
+
+            case Interaction.Ignore:
+                ApplyImpactDamage(indexA, indexB);
+                break;
+        }
+    }
+
+    private void ExecutePredation(int predatorIdx, int preyIdx)
+    {
+        Boid prey = boids[preyIdx];
+        prey.isDead = true;
+        boids[preyIdx] = prey;
+
+        boidAnimators[predatorIdx].SetTrigger("Attack");
+
+        Boid predator = boids[predatorIdx];
+        predator.health = Mathf.Min(predator.health + 25f, speciesSettings[(int)predator.species].maxHealth);
+        boids[predatorIdx] = predator;
+
+        KillBoid(preyIdx);
+    }
+
+    private void ApplyImpactDamage(int indexA, int indexB)
+    {
+        Boid a = boids[indexA];
+        Boid b = boids[indexB];
+
+        float impactSpeed = (a.vel - b.vel).magnitude;
+
+        if (impactSpeed > 2f) 
+        {
+            a.health -= speciesSettings[(int)b.species].contactDamage;
+            b.health -= speciesSettings[(int)a.species].contactDamage;
+
+            boids[indexA] = a;
+            boids[indexB] = b;
+
+            if (a.health <= 0) KillBoid(indexA);
+            if (b.health <= 0) KillBoid(indexB);
+        }
+    }
+
+    // Respawns a boid to a random position;
+    private void RespawnBoid(int index)
+    {
+        Boid boid = boids[index];
+        SpeciesSettings settings = speciesSettings[(int)boid.species];
+
+        boid.isDead = false;
+        boid.health = settings.maxHealth;
+
+        boid.pos = boundsCenter + (Random.insideUnitSphere * (boundsRadius * 0.8f));
+
+        boid.vel = Random.onUnitSphere * settings.maxSpeed;
+
+        boids[index] = boid;
+        boidTransforms[index].position = boid.pos;
+    }
+
+    // Just kill the boid
+    private void KillBoid(int index)
+    {
+        Boid boid = boids[index];
+
+        boid.isDead = true;
+        boid.health = 0f;
+        
+        // Slow momentum down slightly, for a lifeless drift
+        boid.vel *= 0.5f; 
+        
+        boids[index] = boid;
+
+        boidAnimators[index].Play("Death", 0); 
+        boidAnimators[index].Play("Eyes_Dead", 1);
+
+        velocityArrows[index].gameObject.SetActive(false);
+        positionArrows[index].gameObject.SetActive(false);
     }
 }
