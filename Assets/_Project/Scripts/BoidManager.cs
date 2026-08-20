@@ -12,6 +12,11 @@ public struct Boid
     public Species species; 
 };
 
+// Inetractions
+
+public enum Interaction { Ignore, Flock, Hunt, Flee }
+
+
 [System.Serializable]
 public struct SpeciesSettings{
     public string name;
@@ -33,6 +38,12 @@ public struct SpeciesSettings{
     [Header("Limits")]
     public float maxSpeed;
     public float maxForce;
+
+    [Header("Interactions with other species")]
+    public float huntWeight;
+    public float huntRadius;
+    public float fleeWeight;
+    public float fleeRadius;
 }
 
 
@@ -151,12 +162,19 @@ public class BoidManager : MonoBehaviour
     private Transform[] currentArrows;
     private MeshRenderer[] currentArrowRenderers;
 
+    [Header("Animations")]
+    private Animator[] boidAnimators;
+    private string[] currentEyeState;
+
 
     void Start(){
 
 
         boids = new Boid[InitialNumberOfBoids];
         boidTransforms = new Transform[InitialNumberOfBoids];
+
+        currentEyeState = new string[InitialNumberOfBoids];
+        boidAnimators = new Animator[InitialNumberOfBoids];
 
         if ( simulationWithArrows ) velocityArrows = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) positionArrows = new Transform[InitialNumberOfBoids];
@@ -219,8 +237,11 @@ public class BoidManager : MonoBehaviour
 
 
             boidTransforms[i] = newBoid.transform;
-            boidTransforms[i].GetComponent<Animator>().Play("Teardrop_L", 1); // layer 1
+            //boidTransforms[i].GetComponent<Animator>().Play("Teardrop_L", 1); // layer 1
 
+            boidAnimators[i] = boidTransforms[i].GetComponent<Animator>();
+            currentEyeState[i] = "Eyes_blink"; 
+            boidAnimators[i].Play(currentEyeState[i], 1);
 
 
             // if( simulationWithArrows ) {
@@ -363,47 +384,104 @@ public class BoidManager : MonoBehaviour
             Vector3 avgVelocity = Vector3.zero;
             Vector3 separationVector = Vector3.zero;
 
-            int neighborCount = 0;
+            Vector3 fleeVector = Vector3.zero;
+            Vector3 closestPreyPos = Vector3.zero;
+            float closestPreyDist = float.MaxValue;
+
+            int sameSpeciesCount = 0;
+            bool foundPrey = false;
+
+            //int neighborCount = 0;
 
             foreach ( int neighborIdx in neighbors)  {
 
                 Boid neighbor = boids[neighborIdx];
                 float dist = Vector3.Distance(boid.pos, neighbor.pos);
             
+                Interaction action = GetInteraction(boid.species, neighbor.species);
 
+                // if(dist > 0 && dist < settings.perceptionRadius) { 
+                //     centerOfMass += neighbor.pos;
+                //     avgVelocity += neighbor.vel;
 
-                if(dist > 0 && dist < settings.perceptionRadius) { 
-                    centerOfMass += neighbor.pos;
-                    avgVelocity += neighbor.vel;
+                //     if (dist < settings.perceptionRadiusSeparation){
+                //         separationVector += (boid.pos - neighbor.pos).normalized / dist;
+                //     }
+                //     neighborCount++;
+                // }
 
-                    if (dist < settings.perceptionRadiusSeparation){
+                if ( action == Interaction.Flock ) { 
+                    //just flock normally
+                    if ( dist < settings.perceptionRadius ) { 
+                        centerOfMass += neighbor.pos;
+                        avgVelocity += neighbor.vel;
+                        sameSpeciesCount++;
+                    }
+                    if(dist < settings.perceptionRadiusSeparation) { 
+                        //for separation
                         separationVector += (boid.pos - neighbor.pos).normalized / dist;
                     }
-                    neighborCount++;
+                }else if(action == Interaction.Flee && dist < settings.fleeRadius) { 
+                    // exponentially get away, having a hunter very close should scary you
+                    // exponentially more
+                    fleeVector += (boid.pos - neighbor.pos).normalized / (dist * dist);
+                }else if( action == Interaction.Hunt && dist < settings.huntRadius) { 
+                    if(dist < closestPreyDist) { 
+                        closestPreyDist = dist;
+                        closestPreyPos = neighbor.pos;
+                        foundPrey = true;
+                    }
                 }
+
+                // Don't clip into other species, even if u are ignoring them
+                if ( action != Interaction.Flock && dist < settings.perceptionRadiusSeparation ){
+                    separationVector += (boid.pos - neighbor.pos).normalized / dist;
+                }
+
 
             }
             Vector3 accel = Vector3.zero;
 
-            if ( neighborCount > 0 ) { 
-                centerOfMass /= neighborCount;
-                avgVelocity /= neighborCount;
+            if ( sameSpeciesCount > 0 ) { 
+                centerOfMass /= sameSpeciesCount;
+                avgVelocity /= sameSpeciesCount;
 
                 Vector3 cohesionForce = SteerTowards(boid, centerOfMass - boid.pos);
                 Vector3 alignmentForce = SteerTowards(boid, avgVelocity);
-                Vector3 separationForce = SteerTowards(boid, separationVector);
 
                 accel += cohesionForce * settings.cohesionWeight;
                 accel += alignmentForce * settings.alignmentWeight;
-                accel += separationForce * settings.separationWeight;
 
-                // Add the new Obstacle Avoidance rule!
-                Vector3 avoidance = CalculateObstacleAvoidance(boid.pos, boid.vel);
-                Vector3 attraction = CalculateAttractionForce(boid.pos, i);
-                //Vector3 attraction = CalculateObstacleAvoidance(boid.pos, boid.vel);
-                accel += avoidance * settings.avoidWeight + attraction * settings.attractionWeight;
-                //accel += attraction * attractWeight;
             }
+
+            Vector3 separationForce = SteerTowards(boid, separationVector);
+            Vector3 avoidance = CalculateObstacleAvoidance(boid.pos, boid.vel);
+            Vector3 attraction = CalculateAttractionForce(boid.pos, i);
+
+            accel += separationForce * settings.separationWeight;
+            accel += avoidance * settings.avoidWeight + attraction * settings.attractionWeight;
+
+            // also change eye animations depending no what action the boid is taking
+            string targetEyeAnimation = "Eyes_Blink";
+
+            if ( fleeVector != Vector3.zero ) { 
+                accel += SteerTowards(boid, fleeVector) * settings.fleeWeight;
+                targetEyeAnimation = "Eyes_Trauma";
+            }
+
+            if ( foundPrey ) { 
+                Vector3 vectorToPrey = closestPreyPos - boid.pos;
+                accel += SteerTowards(boid, vectorToPrey) * settings.huntWeight;
+                targetEyeAnimation = "Eyes_Excited";
+            }
+
+            //change animation only if behaviour has changed
+            if(currentEyeState[i] != targetEyeAnimation) {
+                currentEyeState[i] = targetEyeAnimation;
+                boidAnimators[i].Play(targetEyeAnimation, 1);
+            }
+
+
 
             Vector3 offsetToCenter = boundsCenter - boid.pos;
             float distFromCenter = offsetToCenter.magnitude;
@@ -819,5 +897,14 @@ public class BoidManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    public Interaction GetInteraction(Species me, Species other) { 
+        if ( me == other ) return Interaction.Ignore;
+
+        if ( me == Species.Crocodile && other != Species.Crocodile ) return Interaction.Hunt;
+        if ( me != Species.Crocodile && other == Species.Crocodile ) return Interaction.Flee;
+
+        return Interaction.Ignore;
     }
 }

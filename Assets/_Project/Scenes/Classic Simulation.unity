@@ -14,8 +14,8 @@ OcclusionCullingSettings:
 RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 9
-  m_Fog: 0
-  m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  m_Fog: 1
+  m_FogColor: {r: 0.007843138, g: 0.043137256, b: 0.078431375, a: 1}
   m_FogMode: 3
   m_FogDensity: 0.01
   m_LinearFogStart: 0
@@ -37,7 +37,7 @@ RenderSettings:
   m_ReflectionBounces: 1
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
-  m_Sun: {fileID: 705507994}
+  m_Sun: {fileID: 0}
   m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
@@ -226,112 +226,7 @@ Transform:
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 9
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &584720266
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 584720270}
-  - component: {fileID: 584720269}
-  - component: {fileID: 584720268}
-  - component: {fileID: 584720267}
-  m_Layer: 0
-  m_Name: Sphere
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!135 &584720267
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 584720266}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!23 &584720268
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 584720266}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &584720269
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 584720266}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &584720270
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 584720266}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 15, y: 15, z: 15}
-  m_ConstrainProportionsScale: 1
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 5
+  m_RootOrder: 8
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &705507993
 GameObject:
@@ -445,7 +340,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!65 &770212810
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -525,12 +420,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 770212809}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -16.8, z: 24.2}
-  m_LocalScale: {x: 20, y: 20, z: 20}
-  m_ConstrainProportionsScale: 1
+  m_LocalPosition: {x: -0.97, y: -16.8, z: -4.74}
+  m_LocalScale: {x: 40, y: 20, z: 40}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 6
+  m_RootOrder: 5
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &784686841
 GameObject:
@@ -635,7 +530,7 @@ Transform:
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 7
+  m_RootOrder: 6
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &963194225
 GameObject:
@@ -723,7 +618,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -30}
+  m_LocalPosition: {x: 0, y: 0, z: -23}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -853,7 +748,7 @@ Transform:
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 10
+  m_RootOrder: 9
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1378930059
 GameObject:
@@ -884,25 +779,61 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5cb269f7551bdb4089a4a77b40522d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  InitialNumberOfBoids: 30
+  InitialNumberOfBoids: 100
   numberOfCalamari: 10
-  numberOfCrocodiles: 10
+  numberOfCrocodiles: 5
+  speciesSettings:
+  - name: Fish
+    preFab: {fileID: 79079474650735835, guid: 348fd08341885724ab9e5c4ead89f09d, type: 3}
+    cohesionWeight: 0.8
+    separationWeight: 2.5
+    alignmentWeight: 1
+    attractionWeight: 5
+    avoidWeight: 5
+    perceptionRadius: 6
+    perceptionRadiusSeparation: 3
+    maxSpeed: 6
+    maxForce: 1
+    huntWeight: 5
+    huntRadius: 15
+    fleeWeight: 8
+    fleeRadius: 10
+  - name: Calamari
+    preFab: {fileID: 4733471387370755981, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
+    cohesionWeight: 2
+    separationWeight: 2.5
+    alignmentWeight: 0.5
+    attractionWeight: 5
+    avoidWeight: 5
+    perceptionRadius: 6
+    perceptionRadiusSeparation: 3
+    maxSpeed: 6
+    maxForce: 1
+    huntWeight: 5
+    huntRadius: 15
+    fleeWeight: 8
+    fleeRadius: 10
+  - name: Crocodile
+    preFab: {fileID: 6690567954782152404, guid: 13c373ff6ff63ec4e9851b5c1f40bfa4, type: 3}
+    cohesionWeight: 0.2
+    separationWeight: 3
+    alignmentWeight: 0.2
+    attractionWeight: 0
+    avoidWeight: 5
+    perceptionRadius: 12
+    perceptionRadiusSeparation: 6
+    maxSpeed: 6
+    maxForce: 3
+    huntWeight: 5
+    huntRadius: 15
+    fleeWeight: 8
+    fleeRadius: 10
   SpawnRadius: 10
-  FishPrefab: {fileID: 79079474650735835, guid: 348fd08341885724ab9e5c4ead89f09d, type: 3}
-  CalamriPrefab: {fileID: 4733471387370755981, guid: 1449b2e0da583ec4183e277ae74ee6d8, type: 3}
-  CrocodilePrefab: {fileID: 6690567954782152404, guid: 13c373ff6ff63ec4e9851b5c1f40bfa4, type: 3}
   cam: {fileID: 963194229}
-  CohesionWeight: 0.8
-  SeparationWeight: 2.5
-  AlignmentWeight: 1
-  PerceptionRadius: 6
-  PerceptionRadiusSeparation: 3
-  MaxSpeed: 7
-  MaxForce: 1
   InitialSpeed: 5
   boundsCenter: {x: 0, y: 0, z: 0}
   boundsRadius: 15
-  boundaryWeight: 1
+  boundaryWeight: 10
   rotationSpeed: 540
   simulationWithArrows: 1
   showBoundRadius: 0
@@ -915,7 +846,7 @@ MonoBehaviour:
   showVisualRange: 0
   showVisualRangeAll: 0
   showChunks: 0
-  maxTrailChunks: 50
+  maxTrailChunks: 100
   cellSize: 6
   obstacleLayer:
     serializedVersion: 2
@@ -924,13 +855,11 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 128
   avoidDistance: 5
-  avoidWeight: 5
   attractDistance: 5
-  attractionWeight: 5
   fishBoundsMargin: 1.5
   obstacleWarningMaterial: {fileID: 2100000, guid: 19b683db5fe9c0c42b20159c1aa3549d, type: 2}
-  showObstacleAvoidance: 1
-  showAllObstacleAvoidance: 1
+  showObstacleAvoidance: 0
+  showAllObstacleAvoidance: 0
   applyCurrents: 0
   currentScale: 0.05
   currentSpeed: 0.2
@@ -1057,7 +986,7 @@ Transform:
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 8
+  m_RootOrder: 7
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &6153934652751799055
 PrefabInstance:

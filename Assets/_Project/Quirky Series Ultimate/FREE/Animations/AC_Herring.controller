@@ -749,7 +749,7 @@ AnimatorStateMachine:
   m_EntryPosition: {x: 50, y: 120, z: 0}
   m_ExitPosition: {x: 930, y: 120, z: 0}
   m_ParentStateMachinePosition: {x: 800, y: 20, z: 0}
-  m_DefaultState: {fileID: -7919968811993571768}
+  m_DefaultState: {fileID: 8584188006650654464}
 --- !u!91 &9100000
 AnimatorController:
   m_ObjectHideFlags: 0
