@@ -340,7 +340,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!65 &770212810
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -780,8 +780,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   InitialNumberOfBoids: 1000
-  numberOfCalamari: 100
-  numberOfCrocodiles: 5
+  numberOfCalamari: 0
+  numberOfCrocodiles: 1
   speciesSettings:
   - name: Fish
     preFab: {fileID: 79079474650735835, guid: 348fd08341885724ab9e5c4ead89f09d, type: 3}
@@ -843,13 +843,15 @@ MonoBehaviour:
   boundsCenter: {x: 0, y: 0, z: 0}
   boundsRadius: 15
   boundaryWeight: 10
-  rotationSpeed: 540
+  rotationSpeed: 280
   simulationWithArrows: 1
   showBoundRadius: 0
   showLineVelocity: 0
   showLineVelocityAll: 0
   showLinePosition: 0
   showLinePositionAll: 0
+  showCollisionSphere: 0
+  showCollisionSphereAll: 0
   transparentMaterialSphere: {fileID: 2100000, guid: 6730e4a69d4a708418cee311c990a4e5, type: 2}
   transparentMaterialChunk: {fileID: 2100000, guid: 0f7957dbad393d041b0073841fb8806d, type: 2}
   showVisualRange: 0

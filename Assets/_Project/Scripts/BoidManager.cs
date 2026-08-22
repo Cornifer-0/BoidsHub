@@ -25,7 +25,11 @@ public struct SpeciesSettings{
     public string name;
 
     public GameObject preFab;
+
+
     public float bodyRadius;
+    
+    [Header("Stats")]
     public float maxHealth;
     public float contactDamage;
 
@@ -100,6 +104,9 @@ public class BoidManager : MonoBehaviour
     public bool showLinePosition = false;
     public bool showLinePositionAll = false;
 
+    public bool showCollisionSphere = false;
+    public bool showCollisionSphereAll = false;
+
     [Header("Extra Visuals")]
 
     public Material transparentMaterialSphere;
@@ -114,6 +121,7 @@ public class BoidManager : MonoBehaviour
 
     private Transform[] velocityArrows;
     private Transform[] positionArrows;
+    private Transform[] collisionSpheres;
 
     [Header("Organic Grid Trail")]
     public int maxTrailChunks = 50;
@@ -187,6 +195,7 @@ public class BoidManager : MonoBehaviour
         if ( simulationWithArrows ) perceptionSpheres = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) marginHitSpheres = new Transform[InitialNumberOfBoids];
         if ( simulationWithArrows ) obstacleArrows = new Transform[InitialNumberOfBoids];
+        if ( simulationWithArrows ) collisionSpheres = new  Transform[InitialNumberOfBoids];
 
         // Generate the 50 cubes for our pool
         float visualSize = cellSize * 1f; // 5% gap
@@ -219,7 +228,7 @@ public class BoidManager : MonoBehaviour
 
         for(int i = 0; i < InitialNumberOfBoids; i++) {
             // Ger random pos
-            Vector3 spawnPos = getRandomSpawn();
+            Vector3 spawnPos = GetSafeSpawnPosition(3.0f);
             Vector3 spawnVel = getRandomDirection() * InitialSpeed; // randomDir * initialSpeed
 
             boids[i].pos = spawnPos;
@@ -245,7 +254,7 @@ public class BoidManager : MonoBehaviour
             boidTransforms[i] = newBoid.transform;
             //boidTransforms[i].GetComponent<Animator>().Play("Teardrop_L", 1); // layer 1
 
-            boidAnimators[i] = boidTransforms[i].GetComponent<Animator>();
+            boidAnimators[i] = boidTransforms[i].GetChild(0).GetComponent<Animator>();
             currentEyeState[i] = "Eyes_Blink"; 
             boidAnimators[i].Play(currentEyeState[i], 1);
 
@@ -323,6 +332,16 @@ public class BoidManager : MonoBehaviour
                 marginHitSpheres[i] = hitSphere.transform;
                 marginHitSpheres[i].gameObject.SetActive(false);
 
+                // collisionSpheres
+
+                GameObject colSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Destroy(colSphere.GetComponent<Collider>());
+                colSphere.GetComponent<MeshRenderer>().material = obstacleWarningMaterial;
+                float md = settings.bodyRadius * 2f;
+                colSphere.transform.localScale = new Vector3(md, md, md);
+                collisionSpheres[i] = colSphere.transform;
+                collisionSpheres[i].gameObject.SetActive(false);
+
             }
         }
 
@@ -353,6 +372,33 @@ public class BoidManager : MonoBehaviour
 
     private Vector3 getRandomSpawn(){
         return transform.position + Random.insideUnitSphere * SpawnRadius;
+    }
+
+    private Vector3 GetSafeSpawnPosition(float safeRadius, int maxAttempts = 15)
+    {
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            Vector3 candidatePos = boundsCenter + (Random.insideUnitSphere * (boundsRadius * 0.8f));
+            bool isSafe = true;
+
+            // Check against boids we have already spawned
+            for (int i = 0; i < boids.Length; i++) 
+            {
+                // Skip uninitialized boids at position (0,0,0)
+                if (boids[i].pos == Vector3.zero) continue; 
+
+                if (Vector3.Distance(candidatePos, boids[i].pos) < safeRadius)
+                {
+                    isSafe = false;
+                    break; // Too close, try again!
+                }
+            }
+
+            if (isSafe) return candidatePos;
+        }
+        
+        // Fallback if the space is too crowded
+        return boundsCenter + (Random.insideUnitSphere * boundsRadius); 
     }
 
     public Vector3 getFishPosition(int i) {
@@ -392,7 +438,7 @@ public class BoidManager : MonoBehaviour
                 boidTransforms[i].position = boid.pos;
                 //if(boid.vel != Vector3.zero) boidTransforms[i].forward = boid.vel.normalized;
 
-                if (boid.vel != Vector3.zero)
+                if ( boid.vel.sqrMagnitude > 0.01f)
                 {
                     Quaternion targetRotation = Quaternion.LookRotation(boid.vel.normalized);
                     boidTransforms[i].rotation = Quaternion.RotateTowards(
@@ -436,6 +482,8 @@ public class BoidManager : MonoBehaviour
                 if ( boid.isDead || neighbor.isDead ) continue;
 
                 float dist = Vector3.Distance(boid.pos, neighbor.pos);
+                if ( dist < 0.001f ) dist = 0.001f;
+
                 SpeciesSettings neighborSettings = speciesSettings[(int)neighbor.species];
 
                 float overlapDistance = (settings.bodyRadius + neighborSettings.bodyRadius) - dist;
@@ -551,6 +599,8 @@ public class BoidManager : MonoBehaviour
                 accel += currentForce * currentWeight;
             }
 
+            if (boids[i].isDead) continue;
+
             // Apply physics
             boid.vel = Vector3.ClampMagnitude(boid.vel + accel * Time.deltaTime, settings.maxSpeed);
             boid.pos += boid.vel * Time.deltaTime;
@@ -560,7 +610,7 @@ public class BoidManager : MonoBehaviour
             boidTransforms[i].position = boid.pos;
             //if(boid.vel != Vector3.zero) boidTransforms[i].forward = boid.vel.normalized;
 
-            if (boid.vel != Vector3.zero)
+            if (boid.vel.sqrMagnitude > 0.01f)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(boid.vel.normalized);
                 boidTransforms[i].rotation = Quaternion.RotateTowards(
@@ -703,8 +753,15 @@ public class BoidManager : MonoBehaviour
                 obstacleArrows[i].gameObject.SetActive(false); // ADDED!
             }
 
+            // collisionSpheres
+            if ( simulationWithArrows && !boid.isDead) { 
+                bool shouldDraw = (cam.targetBoidIndex == i && showCollisionSphere) || showCollisionSphereAll;
 
+                collisionSpheres[i].gameObject.SetActive(shouldDraw);
+                collisionSpheres[i].position = boid.pos;
+            }
         }
+
 
         // Current arrows
         if(simulationWithArrows) UpdateCurrentVisualizer();
@@ -816,23 +873,28 @@ public class BoidManager : MonoBehaviour
 
         Vector3 forward = velocity.normalized;
 
-        // We use fishBoundsMargin as the radius of the SphereCast.
-        // This creates an invisible tube of protection exactly the width of your 3D model.
         if (Physics.SphereCast(position, fishBoundsMargin, forward, out RaycastHit hit, avoidDistance, obstacleLayer))
         {
-            // 1. Get the direction away from the wall
+
             Vector3 awayFromWall = hit.normal;
-            
-            // 2. Base urgency (0 to 1 based on how close the wall is)
+
+
+            // If going straight to the obstacle, pick a side ( up ) a slide through the obstacle
+            if ( Vector3.Dot(forward, awayFromWall) < -0.9f ) { 
+                awayFromWall =  ( awayFromWall + Vector3.up * 0.5f).normalized;
+            }
+
+            Vector3 slideDirection = Vector3.ProjectOnPlane(forward, hit.normal).normalized;
+
+            // blend sliding with avoiding it.
+            Vector3 escapeDirection = (awayFromWall + slideDirection).normalized;
+
             float urgency = 1.0f - (hit.distance / avoidDistance);
             
-            // 3. The Anti-Clipping Multiplier!
-            // We square the urgency so the force spikes exponentially the closer it gets.
-            // This ensures a smooth turn at a distance, but a violently sharp turn if it's about to crash.
             float panicMultiplier = urgency * urgency * 5f; 
             
             // 4. Apply the force
-            avoidForce = awayFromWall * (urgency + panicMultiplier);
+            avoidForce = escapeDirection * (urgency + panicMultiplier);
         }
 
         // same with attraction
@@ -1044,12 +1106,13 @@ public class BoidManager : MonoBehaviour
         boid.health = 0f;
         
         // Slow momentum down slightly, for a lifeless drift
-        boid.vel *= 0.5f; 
+        boid.vel *= 0.4f; 
         
         boids[index] = boid;
 
-        boidAnimators[index].Play("Death", 0); 
+        boidAnimators[index].SetTrigger("Die"); 
         boidAnimators[index].Play("Eyes_Dead", 1);
+        currentEyeState[index] = "Eyes_Dead";
 
         velocityArrows[index].gameObject.SetActive(false);
         positionArrows[index].gameObject.SetActive(false);
