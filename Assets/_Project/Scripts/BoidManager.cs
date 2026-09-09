@@ -1,8 +1,10 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections;
 
 
-public enum Species : byte { Fish, Calamri, Crocodile }
+
+public enum Species : byte { Fish, Calamari, Crocodile }
 
 public struct Boid 
 { 
@@ -11,9 +13,35 @@ public struct Boid
     
     public Species species; 
 
+    public BoidTrait trait;
+
     public float health;
     public bool isDead;
+    public bool enabled;
 };
+
+
+// For the evolution process
+public struct BoidTrait { 
+
+    public float size;
+    public float maxHealth;
+    public float contactDamage;
+
+    public float cohesionWeight;
+    public float separationWeight;
+    public float alignmentWeight;
+
+    public float maxSpeed;
+    public float maxForce;
+
+    public float huntWeight;
+    public float huntRadius;
+    public float fleeWeight;
+    public float fleeRadius;
+
+    // + others related to evolution
+}
 
 // Inetractions
 
@@ -60,9 +88,10 @@ public struct SpeciesSettings{
 public class BoidManager : MonoBehaviour
 {
     [Header("Boid Settings")]
-    public int InitialNumberOfBoids = 100;
+    public int MaxNumberOfBoids = 100;
     public int numberOfCalamari = 10;
     public int numberOfCrocodiles = 10;
+    public int numberOfFish = 10;
 
     [Space(2)]
     // 0 = fish, 1 = Calamari, 2=Crocodile ...
@@ -138,8 +167,6 @@ public class BoidManager : MonoBehaviour
     private Boid[] boids;
     private Transform[] boidTransforms;
 
-    private Boid[] boids2;
-    private Transform[] boidTransforms2;
 
     [Header("Obstacle Avoidance")]
     public LayerMask obstacleLayer;
@@ -176,26 +203,39 @@ public class BoidManager : MonoBehaviour
     private Transform[] currentArrows;
     private MeshRenderer[] currentArrowRenderers;
 
+
+    [Header("Evolution")]
+    public bool evolution = true;
+
+    private List<int> candidateParents = new List<int>(128);
+
+    [Header("UI")]
+    public Grapher grapher;
+    private float sampleTimer = 0f;
+
     [Header("Animations")]
     private Animator[] boidAnimators;
     private string[] currentEyeState;
 
 
+
+
+
     void Start(){
 
 
-        boids = new Boid[InitialNumberOfBoids];
-        boidTransforms = new Transform[InitialNumberOfBoids];
+        boids = new Boid[MaxNumberOfBoids];
+        boidTransforms = new Transform[MaxNumberOfBoids];
 
-        currentEyeState = new string[InitialNumberOfBoids];
-        boidAnimators = new Animator[InitialNumberOfBoids];
+        currentEyeState = new string[MaxNumberOfBoids];
+        boidAnimators = new Animator[MaxNumberOfBoids];
 
-        if ( simulationWithArrows ) velocityArrows = new Transform[InitialNumberOfBoids];
-        if ( simulationWithArrows ) positionArrows = new Transform[InitialNumberOfBoids];
-        if ( simulationWithArrows ) perceptionSpheres = new Transform[InitialNumberOfBoids];
-        if ( simulationWithArrows ) marginHitSpheres = new Transform[InitialNumberOfBoids];
-        if ( simulationWithArrows ) obstacleArrows = new Transform[InitialNumberOfBoids];
-        if ( simulationWithArrows ) collisionSpheres = new  Transform[InitialNumberOfBoids];
+        if ( simulationWithArrows ) velocityArrows = new Transform[MaxNumberOfBoids];
+        if ( simulationWithArrows ) positionArrows = new Transform[MaxNumberOfBoids];
+        if ( simulationWithArrows ) perceptionSpheres = new Transform[MaxNumberOfBoids];
+        if ( simulationWithArrows ) marginHitSpheres = new Transform[MaxNumberOfBoids];
+        if ( simulationWithArrows ) obstacleArrows = new Transform[MaxNumberOfBoids];
+        if ( simulationWithArrows ) collisionSpheres = new  Transform[MaxNumberOfBoids];
 
         // Generate the 50 cubes for our pool
         float visualSize = cellSize * 1f; // 5% gap
@@ -226,7 +266,27 @@ public class BoidManager : MonoBehaviour
         }
 
 
-        for(int i = 0; i < InitialNumberOfBoids; i++) {
+        for(int i = 0; i < MaxNumberOfBoids; i++) {
+
+
+            if(numberOfCalamari > 0) {
+                boids[i].species = Species.Calamari;
+                numberOfCalamari--;
+            }else if(numberOfCrocodiles > 0) {
+                boids[i].species = Species.Crocodile;
+                numberOfCrocodiles--;
+            }else if(numberOfFish > 0){
+                boids[i].species = Species.Fish;
+            }else { 
+                //already spawned everone
+                boids[i].enabled = false;
+                continue;
+            }
+            boids[i].enabled = true;
+
+
+
+
             // Ger random pos
             Vector3 spawnPos = GetSafeSpawnPosition(3.0f);
             Vector3 spawnVel = getRandomDirection() * InitialSpeed; // randomDir * initialSpeed
@@ -234,21 +294,26 @@ public class BoidManager : MonoBehaviour
             boids[i].pos = spawnPos;
             boids[i].vel = spawnVel;
 
-
-            // The species
-            if(numberOfCalamari > 0) {
-                boids[i].species = Species.Calamri;
-                numberOfCalamari--;
-            }else if(numberOfCrocodiles > 0) {
-                boids[i].species = Species.Crocodile;
-                numberOfCrocodiles--;
-            }else {
-                boids[i].species = Species.Fish;
-            }
-            
             SpeciesSettings settings = speciesSettings[(int)boids[i].species];
             GameObject newBoid = Instantiate(settings.preFab, spawnPos, Quaternion.LookRotation(spawnVel));
 
+
+            // add their initial trait things
+            boids[i].trait.size = 1;
+            boids[i].trait.maxHealth = settings.maxHealth;
+            boids[i].trait.contactDamage = settings.contactDamage;
+
+            boids[i].trait.cohesionWeight = settings.cohesionWeight;
+            boids[i].trait.separationWeight = settings.separationWeight;
+            boids[i].trait.alignmentWeight = settings.alignmentWeight;
+
+            boids[i].trait.maxForce = settings.maxForce;
+            boids[i].trait.maxSpeed = settings.maxSpeed;
+
+            boids[i].trait.huntWeight = settings.huntWeight;
+            boids[i].trait.huntRadius = settings.huntRadius;
+            boids[i].trait.fleeWeight = settings.fleeWeight;
+            boids[i].trait.fleeRadius = settings.fleeRadius;
 
 
             boidTransforms[i] = newBoid.transform;
@@ -323,12 +388,9 @@ public class BoidManager : MonoBehaviour
                 // 2. Apply the warning material
                 hitSphere.GetComponent<MeshRenderer>().material = obstacleWarningMaterial;
 
-                // 3. Set the scale perfectly to your margin
-                // Remember: Scale is diameter, so we multiply the radius by 2!
                 float marginDiameter = fishBoundsMargin * 2f;
                 hitSphere.transform.localScale = new Vector3(marginDiameter, marginDiameter, marginDiameter);
 
-                // 4. Save reference and hide it by default
                 marginHitSpheres[i] = hitSphere.transform;
                 marginHitSpheres[i].gameObject.SetActive(false);
 
@@ -409,16 +471,19 @@ public class BoidManager : MonoBehaviour
         return boids[i].vel;
     }
 
-    void Update()
-    { 
+    void Update(){ 
 
         //simulation
 
         UpdateGrid();
 
-        for(int i = 0; i < InitialNumberOfBoids; i++) {
+        for(int i = 0; i < MaxNumberOfBoids; i++) {
             Boid boid = boids[i];
             SpeciesSettings settings = speciesSettings[(int)boid.species];
+
+            if ( !boid.enabled ) { 
+                continue;
+            }
 
 
             if ( boid.isDead ) { 
@@ -546,8 +611,8 @@ public class BoidManager : MonoBehaviour
                 Vector3 cohesionForce = SteerTowards(boid, centerOfMass - boid.pos);
                 Vector3 alignmentForce = SteerTowards(boid, avgVelocity);
 
-                accel += cohesionForce * settings.cohesionWeight;
-                accel += alignmentForce * settings.alignmentWeight;
+                accel += cohesionForce * boid.trait.cohesionWeight;
+                accel += alignmentForce * boid.trait.alignmentWeight;
 
             }
 
@@ -555,7 +620,7 @@ public class BoidManager : MonoBehaviour
             Vector3 avoidance = CalculateObstacleAvoidance(boid.pos, boid.vel);
             Vector3 attraction = CalculateAttractionForce(boid.pos, i);
 
-            accel += separationForce * settings.separationWeight;
+            accel += separationForce * boid.trait.separationWeight;
             accel += avoidance * settings.avoidWeight + attraction * settings.attractionWeight;
 
             // also change eye animations depending no what action the boid is taking
@@ -580,18 +645,7 @@ public class BoidManager : MonoBehaviour
 
 
 
-            Vector3 offsetToCenter = boundsCenter - boid.pos;
-            float distFromCenter = offsetToCenter.magnitude;
-
-            if (distFromCenter > boundsRadius)
-            {
-                float excessDistance = distFromCenter - boundsRadius;
-                
-                // Steering force directed to center, scaled linearly by excess distance
-                Vector3 boundaryForce = SteerTowards(boid, offsetToCenter) * excessDistance;
-                
-                accel += boundaryForce * boundaryWeight;
-            }
+            accel += CalculateBoundaryDeflection(boid);
 
             // Apply currents
             if(applyCurrents) {
@@ -771,6 +825,50 @@ public class BoidManager : MonoBehaviour
         else boundSphere.gameObject.SetActive(false);
 
 
+
+        // UI 
+
+        sampleTimer += Time.deltaTime;
+        if (sampleTimer >= 1.0f)
+        {
+            sampleTimer = 0f;
+            SendGraphData();
+        }
+
+    }
+
+
+    private void SendGraphData()
+    {
+        if (grapher == null) return;
+
+        float totalSpeed = 0f;
+        int activeCount = 0;
+
+        for (int i = 0; i < boids.Length; i++)
+        {
+            if (!boids[i].isDead)
+            {
+                totalSpeed += boids[i].vel.magnitude;
+                activeCount++;
+            }
+        }
+
+        float averageSpeed = activeCount > 0 ? (totalSpeed / activeCount) : 0f;
+
+        int f = 0;
+        int c = 0;
+        int cr = 0;
+
+        for(int i = 0; i < MaxNumberOfBoids; i++) { 
+            if (boids[i].species == Species.Fish) f++;
+            if (boids[i].species == Species.Calamari) c++;
+            if (boids[i].species == Species.Crocodile) cr++; 
+        }
+
+        grapher.AddDataPoint(0, f);      // Blue line
+        grapher.AddDataPoint(1, c);  // Cyan line
+        grapher.AddDataPoint(2, cr); // Red line
     }
 
     private void DrawArrow(Vector3 origin, Vector3 destination, int boidNumber, Transform arrow) 
@@ -825,7 +923,7 @@ public class BoidManager : MonoBehaviour
     private void UpdateGrid(){
         grid.Clear();
 
-        for(int i = 0; i < InitialNumberOfBoids; i++){
+        for(int i = 0; i < MaxNumberOfBoids; i++){
             Boid b = boids[i];
             Vector3Int cellCoord = GetCellCoord(b.pos);
 
@@ -1116,5 +1214,175 @@ public class BoidManager : MonoBehaviour
 
         velocityArrows[index].gameObject.SetActive(false);
         positionArrows[index].gameObject.SetActive(false);
+
+        StartCoroutine(DisableThisBoid(index)); // disable in 10s
+    }
+
+    private IEnumerator DisableThisBoid(int boid) 
+    {
+        
+        Transform fishTransform = boidTransforms[boid];
+        Vector3 originalScale = fishTransform.localScale;
+        float timer = 0f;
+        float fadeDuration = 3f;
+
+        while (timer < fadeDuration)
+        {
+            timer += Time.deltaTime;
+            float progress = timer / fadeDuration;
+
+            fishTransform.localScale = Vector3.Lerp(originalScale, Vector3.zero, progress);
+
+            yield return null;
+        }
+        
+        yield return new WaitForSeconds(3f);
+        
+        //boids[boid].enabled = false;
+        //boidTransforms[boid].gameObject.SetActive(false);
+
+        // Instead of disabling it, spawn another with evolved traits.
+
+
+        //yield return new WaitForSeconds(5f);
+
+        if (evolution) { 
+            respawn(boid);
+        }
+    }
+
+    private void selectRandomParents(int child, out int father, out int mother) { 
+        
+        candidateParents.Clear();
+        Species bs = boids[child].species;
+
+
+        for(int i = 0; i < MaxNumberOfBoids; i++) { 
+            Boid b = boids[i];
+            Species s = b.species;
+            if(s == bs && i != child && !boids[i].isDead) {
+                candidateParents.Add(i);
+            }
+        }
+
+        Debug.Log("I see this many parents: " + candidateParents.Count);
+
+        if(candidateParents.Count < 2 ) {
+            father = -1;
+            mother = -1;   
+            return;
+        }
+        father = candidateParents[Random.Range(0, candidateParents.Count)];
+        
+        do {
+            mother = candidateParents[Random.Range(0, candidateParents.Count)];
+        }while ( father == mother );
+    }
+
+    // Generates a Gaussian random number centered at 0
+    private float GetGaussian(float standardDeviation)
+    {
+        float u1 = 1.0f - UnityEngine.Random.value;
+        float u2 = 1.0f - UnityEngine.Random.value;
+        // Box-Muller transform
+        float randStdNormal = Mathf.Sqrt(-2.0f * Mathf.Log(u1)) * Mathf.Sin(2.0f * Mathf.PI * u2); 
+        return standardDeviation * randStdNormal;
+    }
+
+    private BoidTrait mutateTrait(int father, int mother) {
+        BoidTrait mutatedTrait;
+        BoidTrait fatherTrait = boids[father].trait;
+        BoidTrait motherTrait = boids[mother].trait;
+
+        float sd = 0.05f;
+
+        mutatedTrait.size = ((fatherTrait.size + motherTrait.size) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.maxHealth = ((fatherTrait.maxHealth + motherTrait.maxHealth) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.contactDamage = ((fatherTrait.contactDamage + motherTrait.contactDamage) / 2.0f ) * ( 1f + GetGaussian(sd));
+
+        mutatedTrait.cohesionWeight = ((fatherTrait.cohesionWeight + motherTrait.cohesionWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.separationWeight = ((fatherTrait.separationWeight + motherTrait.separationWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.alignmentWeight = ((fatherTrait.alignmentWeight + motherTrait.alignmentWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
+
+        mutatedTrait.maxForce = ((fatherTrait.maxForce + motherTrait.maxForce) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.maxSpeed = ((fatherTrait.maxSpeed + motherTrait.maxSpeed) / 2.0f ) * ( 1f + GetGaussian(sd));
+
+        mutatedTrait.huntWeight = ((fatherTrait.huntWeight + motherTrait.huntWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.huntRadius = ((fatherTrait.huntRadius + motherTrait.huntRadius) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.fleeWeight = ((fatherTrait.fleeWeight + motherTrait.fleeWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.fleeRadius = ((fatherTrait.fleeRadius + motherTrait.fleeRadius) / 2.0f ) * ( 1f + GetGaussian(sd));
+
+        return mutatedTrait;
+
+    }
+
+    // Respawns a boid with the traits slightly mutaed from two randomly selected parents
+    private void respawn(int boid) {
+        
+        int father = -1;
+        int mother = -1;
+
+        // select random parents
+        selectRandomParents(boid, out father, out mother);
+
+        Debug.Log("Trying to ");
+        if (father == -1 || mother == -1) return; // Can't spawn new one ( extinct species )
+
+        BoidTrait evolvedTrait = mutateTrait(father, mother);
+
+        boids[boid].trait = evolvedTrait;
+        boids[boid].isDead = false;
+        boids[boid].health = evolvedTrait.maxHealth;
+        boids[boid].enabled = true;
+
+        boidTransforms[boid].gameObject.SetActive(true);
+        boidTransforms[boid].localScale = new Vector3(evolvedTrait.size, evolvedTrait.size, evolvedTrait.size);
+
+        //boidAnimators[index].SetTrigger("Die"); 
+        boidAnimators[boid].Play("Eyes_Blink", 1);
+        currentEyeState[boid] = "Eyes_Blink";
+
+        boidAnimators[boid].Play("Swim");
+
+        //velocityArrows[boid].gameObject.SetActive(false);
+        //positionArrows[boid].gameObject.SetActive(false);
+
+        Debug.Log("Mutated and spawned");
+
+
+    }
+
+
+    // With tangential project on plane, this way the boid doesn't bounce, but smoothly work around the border
+    private Vector3 CalculateBoundaryDeflection(Boid boid)
+    {
+        Vector3 offsetToCenter = boundsCenter - boid.pos;
+        float distFromCenter = offsetToCenter.magnitude;
+
+        if (distFromCenter > boundsRadius)
+        {
+            float excessDistance = distFromCenter - boundsRadius;
+            
+            // The direction pushing back toward the center of the map
+            Vector3 inwardNormal = offsetToCenter / distFromCenter; 
+            Vector3 forward = boid.vel.normalized;
+
+            // Prevent a deadlock if the fish is swimming perfectly straight out
+            if (Vector3.Dot(forward, inwardNormal) < -0.9f)
+            {
+                inwardNormal = (inwardNormal + Vector3.up * 0.5f).normalized;
+            }
+
+            // Project the forward velocity to slide ALONG the spherical boundary
+            Vector3 slideDirection = Vector3.ProjectOnPlane(forward, inwardNormal).normalized;
+            
+            // Blend sliding along the curve with a push back inside
+            Vector3 curveDirection = (slideDirection + (inwardNormal * 0.5f)).normalized;
+
+            // Return the force, scaling intensity by how far out they drifted
+            return SteerTowards(boid, curveDirection) * (excessDistance * boundaryWeight);
+        }
+
+        return Vector3.zero;
     }
 }
