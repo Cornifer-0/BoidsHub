@@ -18,6 +18,8 @@ public struct Boid
     public float health;
     public bool isDead;
     public bool enabled;
+    
+    public int ticksSurvived; // To easily select most fitting individuals
 };
 
 
@@ -265,16 +267,19 @@ public class BoidManager : MonoBehaviour
             chunkPool.Enqueue(rend);
         }
 
+        int caToSpawn = numberOfCalamari;
+        int crToSpawn = numberOfCrocodiles;
+
 
         for(int i = 0; i < MaxNumberOfBoids; i++) {
 
 
-            if(numberOfCalamari > 0) {
+            if(caToSpawn > 0) {
                 boids[i].species = Species.Calamari;
-                numberOfCalamari--;
-            }else if(numberOfCrocodiles > 0) {
+                caToSpawn--;
+            }else if(crToSpawn > 0) {
                 boids[i].species = Species.Crocodile;
-                numberOfCrocodiles--;
+                crToSpawn--;
             }else if(numberOfFish > 0){
                 boids[i].species = Species.Fish;
             }else { 
@@ -829,10 +834,18 @@ public class BoidManager : MonoBehaviour
         // UI 
 
         sampleTimer += Time.deltaTime;
-        if (sampleTimer >= 1.0f)
+        if (sampleTimer >= 0.2f)
         {
             sampleTimer = 0f;
             SendGraphData();
+
+            for (int i = 0; i < MaxNumberOfBoids; i++)
+            {
+                if (!boids[i].isDead)
+                {
+                    boids[i].ticksSurvived++;
+                }
+            }
         }
 
     }
@@ -856,19 +869,35 @@ public class BoidManager : MonoBehaviour
 
         float averageSpeed = activeCount > 0 ? (totalSpeed / activeCount) : 0f;
 
-        int f = 0;
-        int c = 0;
-        int cr = 0;
+        float f = 0;
+        float c = 0;
+        float cr = 0;
+
+        float f_sep = 0;
+        float f_ali = 0;
+        float f_coh = 0;
 
         for(int i = 0; i < MaxNumberOfBoids; i++) { 
-            if (boids[i].species == Species.Fish) f++;
-            if (boids[i].species == Species.Calamari) c++;
-            if (boids[i].species == Species.Crocodile) cr++; 
+            if (boids[i].species == Species.Fish){
+                f += boids[i].trait.separationWeight;
+                f_sep += boids[i].trait.separationWeight;
+                f_coh += boids[i].trait.cohesionWeight;
+                f_ali += boids[i].trait.alignmentWeight;
+            }
+            if (boids[i].species == Species.Calamari) c += boids[i].trait.separationWeight;
+            if (boids[i].species == Species.Crocodile) cr += boids[i].trait.separationWeight; 
         }
 
-        grapher.AddDataPoint(0, f);      // Blue line
-        grapher.AddDataPoint(1, c);  // Cyan line
-        grapher.AddDataPoint(2, cr); // Red line
+        Debug.Log("Secing data...");
+
+        // grapher.AddDataPoint(0, f/numberOfFish);      // Blue line
+        // grapher.AddDataPoint(1, c/numberOfCalamari);  // Cyan line
+        // grapher.AddDataPoint(2, cr/numberOfCrocodiles); // Red line
+
+        
+        grapher.AddDataPoint(0, f_sep/numberOfFish);      // Blue line
+        grapher.AddDataPoint(1, f_coh/numberOfFish);  // Cyan line
+        grapher.AddDataPoint(2, f_ali/numberOfFish); // Red line
     }
 
     private void DrawArrow(Vector3 origin, Vector3 destination, int boidNumber, Transform arrow) 
@@ -1251,32 +1280,57 @@ public class BoidManager : MonoBehaviour
         }
     }
 
-    private void selectRandomParents(int child, out int father, out int mother) { 
-        
+    private void selectOldestParents(int child, out int father, out int mother) 
+    { 
         candidateParents.Clear();
         Species bs = boids[child].species;
 
-
-        for(int i = 0; i < MaxNumberOfBoids; i++) { 
+        // Filter alive boids of the same species
+        for (int i = 0; i < MaxNumberOfBoids; i++) 
+        { 
             Boid b = boids[i];
-            Species s = b.species;
-            if(s == bs && i != child && !boids[i].isDead) {
+            if (b.species == bs && i != child && !boids[i].isDead) 
+            {
                 candidateParents.Add(i);
             }
         }
 
-        Debug.Log("I see this many parents: " + candidateParents.Count);
-
-        if(candidateParents.Count < 2 ) {
+        if (candidateParents.Count < 2) 
+        {
             father = -1;
             mother = -1;   
             return;
         }
-        father = candidateParents[Random.Range(0, candidateParents.Count)];
-        
-        do {
-            mother = candidateParents[Random.Range(0, candidateParents.Count)];
-        }while ( father == mother );
+
+        int best1 = -1;
+        int best2 = -1;
+        int maxTicks1 = -1;
+        int maxTicks2 = -1;
+
+        // Allocation-free search for top 2 oldest boids
+        for (int k = 0; k < candidateParents.Count; k++) 
+        {
+            int index = candidateParents[k];
+            int ticks = boids[index].ticksSurvived;
+
+            if (ticks > maxTicks1) 
+            {
+                // Demote previous best to second place
+                maxTicks2 = maxTicks1;
+                best2 = best1;
+
+                maxTicks1 = ticks;
+                best1 = index;
+            } 
+            else if (ticks > maxTicks2) 
+            {
+                maxTicks2 = ticks;
+                best2 = index;
+            }
+        }
+
+        father = best1;
+        mother = best2;
     }
 
     // Generates a Gaussian random number centered at 0
@@ -1294,7 +1348,7 @@ public class BoidManager : MonoBehaviour
         BoidTrait fatherTrait = boids[father].trait;
         BoidTrait motherTrait = boids[mother].trait;
 
-        float sd = 0.05f;
+        float sd = 0.2f;
 
         mutatedTrait.size = ((fatherTrait.size + motherTrait.size) / 2.0f ) * ( 1f + GetGaussian(sd));
         mutatedTrait.maxHealth = ((fatherTrait.maxHealth + motherTrait.maxHealth) / 2.0f ) * ( 1f + GetGaussian(sd));
@@ -1323,7 +1377,7 @@ public class BoidManager : MonoBehaviour
         int mother = -1;
 
         // select random parents
-        selectRandomParents(boid, out father, out mother);
+        selectOldestParents(boid, out father, out mother);
 
         Debug.Log("Trying to ");
         if (father == -1 || mother == -1) return; // Can't spawn new one ( extinct species )
@@ -1334,6 +1388,8 @@ public class BoidManager : MonoBehaviour
         boids[boid].isDead = false;
         boids[boid].health = evolvedTrait.maxHealth;
         boids[boid].enabled = true;
+
+        boids[boid].ticksSurvived = 0; // just born
 
         boidTransforms[boid].gameObject.SetActive(true);
         boidTransforms[boid].localScale = new Vector3(evolvedTrait.size, evolvedTrait.size, evolvedTrait.size);
@@ -1347,7 +1403,7 @@ public class BoidManager : MonoBehaviour
         //velocityArrows[boid].gameObject.SetActive(false);
         //positionArrows[boid].gameObject.SetActive(false);
 
-        Debug.Log("Mutated and spawned");
+        Debug.Log("Mutated and spawned with c : " + evolvedTrait.cohesionWeight);
 
 
     }
