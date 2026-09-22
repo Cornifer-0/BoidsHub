@@ -25,7 +25,7 @@ public struct Boid
 // For the evolution process
 public struct BoidTrait { 
 
-    public float size; // to remove
+    //public float size; // to remove
     public float maxHealth;
     public float contactDamage;
 
@@ -42,6 +42,8 @@ public struct BoidTrait {
     public float fleeRadius;
 
     // + others related to evolution
+
+    public float foodWeight;
 }
 
 // Inetractions
@@ -83,6 +85,9 @@ public struct SpeciesSettings{
     public float huntRadius;
     public float fleeWeight;
     public float fleeRadius;
+
+    [Header("Food")]
+    public float foodWeight;
 }
 
 
@@ -219,7 +224,17 @@ public class BoidManager : MonoBehaviour
     private string[] currentEyeState;
 
 
+    [Header("Food Configuration")]
+    public bool food = false;
+    public int maxFoodCount = 200;
+    public float foodSpawnRadius = 80f;
+    public float foodPerceptionRadius = 30f;
+    public float eatDistance = 1.5f;
+    public float healthFromFood = 25f;
+    public float passiveHealthDecayRate = 2f; // Health lost per second
 
+    private Vector3[] foodPositions;
+    private bool[] foodActive;
 
 
     void Start(){
@@ -303,8 +318,10 @@ public class BoidManager : MonoBehaviour
 
 
             // add their initial trait things
-            boids[i].trait.size = 1;
+            //boids[i].trait.size = 1;
             boids[i].trait.maxHealth = settings.maxHealth;
+            boids[i].health = settings.maxHealth;
+
             boids[i].trait.contactDamage = settings.contactDamage;
 
             boids[i].trait.cohesionWeight = settings.cohesionWeight;
@@ -318,6 +335,8 @@ public class BoidManager : MonoBehaviour
             boids[i].trait.huntRadius = settings.huntRadius;
             boids[i].trait.fleeWeight = settings.fleeWeight;
             boids[i].trait.fleeRadius = settings.fleeRadius;
+
+            boids[i].trait.foodWeight = settings.foodWeight;
 
 
             boidTransforms[i] = newBoid.transform;
@@ -432,6 +451,74 @@ public class BoidManager : MonoBehaviour
         }
     }
 
+
+    public Vector3 CalculateFoodForceAndEat(int boidIndex)
+    {
+        Boid boid = boids[boidIndex];
+        SpeciesSettings settings = speciesSettings[(int)boid.species];
+        FoodItem targetFood = FoodManager.Instance.GetNearestAvailableFood(boid.pos, settings.perceptionRadius);
+
+
+        if (targetFood != null)
+        {
+            float distToFood = Vector3.Distance(boid.pos, targetFood.transform.position);
+
+            // Eat condition
+            if (distToFood <= eatDistance)
+            {
+                FoodManager.Instance.ConsumeFood(targetFood);
+                boid.health = Mathf.Min(boid.health + 30f, boid.trait.maxHealth);
+            }
+            else
+            {
+                // Seek force towards food position
+                Vector3 desired = (targetFood.transform.position - boid.pos).normalized * boid.trait.maxSpeed;
+                return Vector3.ClampMagnitude(desired - boid.vel, boid.trait.maxForce);
+            }
+        }
+        return Vector3.zero;
+    }
+
+    public void Decay(int iboid) 
+    { 
+        BoidTrait trait = boids[iboid].trait;
+
+        // Basal Metabolism: Maintaining body mass
+        float baseCost = 0.02f * trait.maxHealth;
+
+        // Locomotive Cost: High maxSpeed costs energy quadratically (v^2)
+        float speedCost = 0.02f * (trait.maxSpeed * trait.maxSpeed);
+
+        // Sensory Cost: Maintaining wide perception ranges (brain/eye power)
+        float sensoryCost = 0.01f * (trait.huntRadius + trait.fleeRadius);
+
+        // Combat Cost
+        float combatCost = 0.015f * trait.contactDamage;
+
+        // 5. Neural Complexity: Cost for high weight intensity
+        float behaviorCost = 0.005f * (
+            Mathf.Abs(trait.cohesionWeight) +
+            Mathf.Abs(trait.separationWeight) +
+            Mathf.Abs(trait.alignmentWeight) +
+            Mathf.Abs(trait.huntWeight) +
+            Mathf.Abs(trait.fleeWeight) +
+            Mathf.Abs(trait.foodWeight)
+        );
+
+        // Total metabolic rate
+        float metabolicRate = baseCost + speedCost + sensoryCost + combatCost + behaviorCost;
+
+        metabolicRate = Mathf.Max(0.1f, metabolicRate);
+
+        boids[iboid].health -= metabolicRate * Time.deltaTime;
+
+        if (boids[iboid].health <= 0f) 
+        {
+            boids[iboid].health = 0f;
+            KillBoid(iboid);
+        }
+    }
+
     private Vector3 getRandomDirection(){
         return Random.onUnitSphere;
     }
@@ -518,6 +605,8 @@ public class BoidManager : MonoBehaviour
                 }
                 continue;
             }
+
+            Decay(i);
 
             Vector3Int myCell = GetCellCoord(boid.pos);
             List<int> neighbors = getNeighbors(myCell, i);
@@ -657,6 +746,11 @@ public class BoidManager : MonoBehaviour
                 accel += currentForce * currentWeight;
             }
 
+            if(food) { 
+                Vector3 foodForce = CalculateFoodForceAndEat(i);
+                accel += foodForce * boid.trait.foodWeight;
+            }
+
             if (boids[i].isDead) continue;
 
             // Apply physics
@@ -717,116 +811,120 @@ public class BoidManager : MonoBehaviour
                     DrawArrow(Vector3.zero, boid.pos, i, positionArrows[i]);
                 }
 
-            }
+            
 
-            bool isTargetFish = (cam.targetBoidIndex == i);
+                bool isTargetFish = (cam.targetBoidIndex == i);
 
-            if ( showVisualRange && isTargetFish || showVisualRangeAll ) { 
-                perceptionSpheres[i].gameObject.SetActive(true);
-                perceptionSpheres[i].position = boid.pos;
+                if ( showVisualRange && isTargetFish || showVisualRangeAll ) { 
+                    perceptionSpheres[i].gameObject.SetActive(true);
+                    perceptionSpheres[i].position = boid.pos;
 
-                float diamater = settings.perceptionRadius * 2f;
-                perceptionSpheres[i].localScale = new Vector3(diamater, diamater, diamater);
-            }else{
-                perceptionSpheres[i].gameObject.SetActive(false);
-            }
+                    float diamater = settings.perceptionRadius * 2f;
+                    perceptionSpheres[i].localScale = new Vector3(diamater, diamater, diamater);
+                }else{
+                    perceptionSpheres[i].gameObject.SetActive(false);
+                }
 
-            if (isTargetFish && showChunks)
-            {
-                int fishX = Mathf.FloorToInt(boid.pos.x / cellSize);
-                int fishY = Mathf.FloorToInt(boid.pos.y / cellSize);
-                int fishZ = Mathf.FloorToInt(boid.pos.z / cellSize);
-
-                for (int xOffset = -1; xOffset <= 1; xOffset++)
+                if (isTargetFish && showChunks)
                 {
-                    for (int yOffset = -1; yOffset <= 1; yOffset++)
+                    int fishX = Mathf.FloorToInt(boid.pos.x / cellSize);
+                    int fishY = Mathf.FloorToInt(boid.pos.y / cellSize);
+                    int fishZ = Mathf.FloorToInt(boid.pos.z / cellSize);
+
+                    for (int xOffset = -1; xOffset <= 1; xOffset++)
                     {
-                        for (int zOffset = -1; zOffset <= 1; zOffset++)
+                        for (int yOffset = -1; yOffset <= 1; yOffset++)
                         {
-                            Vector3Int targetCoord = new Vector3Int(fishX + xOffset, fishY + yOffset, fishZ + zOffset);
-
-                            if (activeChunksMap.ContainsKey(targetCoord)) continue;
-
-                            if (chunkPool.Count == 0)
+                            for (int zOffset = -1; zOffset <= 1; zOffset++)
                             {
-                                Vector3Int oldestCoord = activeChunkHistory.Dequeue();
-                                MeshRenderer oldestCube = activeChunksMap[oldestCoord];
+                                Vector3Int targetCoord = new Vector3Int(fishX + xOffset, fishY + yOffset, fishZ + zOffset);
+
+                                if (activeChunksMap.ContainsKey(targetCoord)) continue;
+
+                                if (chunkPool.Count == 0)
+                                {
+                                    Vector3Int oldestCoord = activeChunkHistory.Dequeue();
+                                    MeshRenderer oldestCube = activeChunksMap[oldestCoord];
+                                    
+                                    activeChunksMap.Remove(oldestCoord);
+                                    chunkPool.Enqueue(oldestCube); // Put it back in the bin
+                                }
+
+                                MeshRenderer newCube = chunkPool.Dequeue();
                                 
-                                activeChunksMap.Remove(oldestCoord);
-                                chunkPool.Enqueue(oldestCube); // Put it back in the bin
+                                Vector3 chunkCenter = new Vector3(
+                                    targetCoord.x * cellSize + (cellSize / 2f),
+                                    targetCoord.y * cellSize + (cellSize / 2f),
+                                    targetCoord.z * cellSize + (cellSize / 2f)
+                                );
+                                
+                                newCube.transform.position = chunkCenter;
+                                newCube.gameObject.SetActive(true);
+
+                                newCube.material.color = new Color(0f, 0.5f, 1f, 0.2f);
+
+                                activeChunksMap.Add(targetCoord, newCube);
+                                activeChunkHistory.Enqueue(targetCoord);
                             }
-
-                            MeshRenderer newCube = chunkPool.Dequeue();
-                            
-                            Vector3 chunkCenter = new Vector3(
-                                targetCoord.x * cellSize + (cellSize / 2f),
-                                targetCoord.y * cellSize + (cellSize / 2f),
-                                targetCoord.z * cellSize + (cellSize / 2f)
-                            );
-                            
-                            newCube.transform.position = chunkCenter;
-                            newCube.gameObject.SetActive(true);
-
-                            newCube.material.color = new Color(0f, 0.5f, 1f, 0.2f);
-
-                            activeChunksMap.Add(targetCoord, newCube);
-                            activeChunkHistory.Enqueue(targetCoord);
                         }
                     }
                 }
-            }
 
-            if ( showAllObstacleAvoidance || (showObstacleAvoidance && isTargetFish) ) 
-            { 
-                Vector3 forward = boid.vel.normalized;
+                if ( showAllObstacleAvoidance || (showObstacleAvoidance && isTargetFish) ) 
+                { 
+                    Vector3 forward = boid.vel.normalized;
 
-                // Cast the exact same sphere as your physics logic
-                if (Physics.SphereCast(boid.pos, fishBoundsMargin, forward, out RaycastHit hit, avoidDistance, obstacleLayer))
-                {
-                    // 1. SHOW THE MARGIN SPHERE
-                    marginHitSpheres[i].gameObject.SetActive(true);
-                    
-                    // Position the sphere exactly where the SphereCast touched the rock
-                    marginHitSpheres[i].position = hit.point + (hit.normal * fishBoundsMargin);
+                    // Cast the exact same sphere as your physics logic
+                    if (Physics.SphereCast(boid.pos, fishBoundsMargin, forward, out RaycastHit hit, avoidDistance, obstacleLayer))
+                    {
+                        // 1. SHOW THE MARGIN SPHERE
+                        marginHitSpheres[i].gameObject.SetActive(true);
+                        
+                        // Position the sphere exactly where the SphereCast touched the rock
+                        marginHitSpheres[i].position = hit.point + (hit.normal * fishBoundsMargin);
 
-                    // 2. DRAW THE ESCAPE FORCE ARROW
-                    float urgency = 1.0f - (hit.distance / avoidDistance);
-                    float panicMultiplier = urgency * urgency * 5f;
-                    Vector3 visualForce = hit.normal * (urgency + panicMultiplier);
+                        // 2. DRAW THE ESCAPE FORCE ARROW
+                        float urgency = 1.0f - (hit.distance / avoidDistance);
+                        float panicMultiplier = urgency * urgency * 5f;
+                        Vector3 visualForce = hit.normal * (urgency + panicMultiplier);
 
-                    obstacleArrows[i].gameObject.SetActive(true);
-                    DrawArrow(boid.pos, boid.pos + visualForce, i, obstacleArrows[i]); 
+                        obstacleArrows[i].gameObject.SetActive(true);
+                        DrawArrow(boid.pos, boid.pos + visualForce, i, obstacleArrows[i]); 
+                    }
+                    else
+                    {
+                        // Hide both if the water ahead is clear!
+                        marginHitSpheres[i].gameObject.SetActive(false);
+                        obstacleArrows[i].gameObject.SetActive(false); // FIXED!
+                    }
                 }
-                else
+                else 
                 {
-                    // Hide both if the water ahead is clear!
+                    // Hide both if the visualizer toggle is turned off!
                     marginHitSpheres[i].gameObject.SetActive(false);
-                    obstacleArrows[i].gameObject.SetActive(false); // FIXED!
+                    obstacleArrows[i].gameObject.SetActive(false); // ADDED!
                 }
-            }
-            else 
-            {
-                // Hide both if the visualizer toggle is turned off!
-                marginHitSpheres[i].gameObject.SetActive(false);
-                obstacleArrows[i].gameObject.SetActive(false); // ADDED!
-            }
 
-            // collisionSpheres
-            if ( simulationWithArrows && !boid.isDead) { 
-                bool shouldDraw = (cam.targetBoidIndex == i && showCollisionSphere) || showCollisionSphereAll;
+                // collisionSpheres
+                if ( simulationWithArrows && !boid.isDead) { 
+                    bool shouldDraw2 = (cam.targetBoidIndex == i && showCollisionSphere) || showCollisionSphereAll;
 
-                collisionSpheres[i].gameObject.SetActive(shouldDraw);
-                collisionSpheres[i].position = boid.pos;
+                    collisionSpheres[i].gameObject.SetActive(shouldDraw2);
+                    collisionSpheres[i].position = boid.pos;
+                }
             }
         }
 
 
         // Current arrows
-        if(simulationWithArrows) UpdateCurrentVisualizer();
+        if(simulationWithArrows){
 
-        // bounds sphere
-        if(showBoundRadius) boundSphere.gameObject.SetActive(true);
-        else boundSphere.gameObject.SetActive(false);
+            UpdateCurrentVisualizer();
+
+            // bounds sphere
+            if(showBoundRadius) boundSphere.gameObject.SetActive(true);
+            else boundSphere.gameObject.SetActive(false);
+        }
 
 
 
@@ -850,77 +948,72 @@ public class BoidManager : MonoBehaviour
     }
 
 
+    private float totalSimTime = 0f;
+
     private void SendGraphData()
     {
-        if (grapher == null) return;
+        totalSimTime += sampleTimer;
 
         float totalSpeed = 0f;
-        int activeCount = 0;
+        int fishCount = 0;
 
-        for (int i = 0; i < boids.Length; i++)
+        float f_sep = 0, f_ali = 0, f_coh = 0;
+        float f_ms = 0, f_mf = 0;
+        float f_hw = 0, f_hr = 0, f_fw = 0, f_fr = 0;
+
+        for (int i = 0; i < MaxNumberOfBoids; i++)
         {
-            if (!boids[i].isDead)
+            if (!boids[i].isDead && boids[i].species == Species.Fish)
             {
+                fishCount++;
                 totalSpeed += boids[i].vel.magnitude;
-                activeCount++;
-            }
-        }
 
-        float averageSpeed = activeCount > 0 ? (totalSpeed / activeCount) : 0f;
-
-        float f = 0;
-        float c = 0;
-        float cr = 0;
-
-        float f_sep = 0;
-        float f_ali = 0;
-        float f_coh = 0;
-
-        float f_ms = 0;
-        float f_mf = 0;
-
-        float f_hw = 0;
-        float f_hr = 0;
-        float f_fw = 0;
-        float f_fr = 0;
-
-        for(int i = 0; i < MaxNumberOfBoids; i++) { 
-            if (boids[i].species == Species.Fish){
-                f += boids[i].trait.separationWeight;
                 f_sep += boids[i].trait.separationWeight;
                 f_coh += boids[i].trait.cohesionWeight;
                 f_ali += boids[i].trait.alignmentWeight;
 
                 f_ms += boids[i].trait.maxSpeed;
                 f_mf += boids[i].trait.maxForce;
-                
+
                 f_hw += boids[i].trait.huntWeight;
                 f_hr += boids[i].trait.huntRadius;
                 f_fw += boids[i].trait.fleeWeight;
                 f_fr += boids[i].trait.fleeRadius;
             }
-            if (boids[i].species == Species.Calamari) c += boids[i].trait.separationWeight;
-            if (boids[i].species == Species.Crocodile) cr += boids[i].trait.separationWeight; 
         }
 
-        Debug.Log("Secing data...");
+        if (fishCount == 0) return; // Prevent division by zero if all fish die
 
-        // grapher.AddDataPoint(0, f/numberOfFish);      // Blue line
-        // grapher.AddDataPoint(1, c/numberOfCalamari);  // Cyan line
-        // grapher.AddDataPoint(2, cr/numberOfCrocodiles); // Red line
+        // Calculate Averages
+        float avgSpeed = totalSpeed / fishCount;
+        float avgSep = f_sep / fishCount;
+        float avgCoh = f_coh / fishCount;
+        float avgAli = f_ali / fishCount;
+        float avgMaxSpeed = f_ms / fishCount;
+        float avgMaxForce = f_mf / fishCount;
+        float avgHuntWeight = f_hw / fishCount;
+        float avgHuntRadius = f_hr / fishCount;
+        float avgFleeWeight = f_fw / fishCount;
+        float avgFleeRadius = f_fr / fishCount;
 
-        
-        grapher.AddDataPoint(0, f_sep/numberOfFish);      // Blue line
-        grapher.AddDataPoint(1, f_coh/numberOfFish);  // Cyan line
-        grapher.AddDataPoint(2, f_ali/numberOfFish); // Red line
+        // 1. Send to Unity UI Grapher (Existing)
+        if (grapher != null)
+        {
+            grapher.AddDataPoint(0, avgSep);
+            grapher.AddDataPoint(1, avgCoh);
+            grapher.AddDataPoint(2, avgAli);
+        }
 
-        grapher.AddDataPoint(3, f_ms/numberOfFish); 
-        grapher.AddDataPoint(4, f_mf/numberOfFish); 
-
-        grapher.AddDataPoint(5, f_hw/numberOfFish); 
-        grapher.AddDataPoint(6, f_hr/numberOfFish); 
-        grapher.AddDataPoint(7, f_fw/numberOfFish); 
-        grapher.AddDataPoint(8, f_fr/numberOfFish); 
+        // 2. Export to CSV file
+        if (CSVExporter.Instance != null)
+        {
+            CSVExporter.Instance.LogDataRow(
+                totalSimTime, fishCount, avgSpeed,
+                avgSep, avgCoh, avgAli,
+                avgMaxSpeed, avgMaxForce,
+                avgHuntWeight, avgHuntRadius, avgFleeWeight, avgFleeRadius
+            );
+        }
     }
 
     private void DrawArrow(Vector3 origin, Vector3 destination, int boidNumber, Transform arrow) 
@@ -1204,7 +1297,7 @@ public class BoidManager : MonoBehaviour
         boidAnimators[predatorIdx].SetTrigger("Attack");
 
         Boid predator = boids[predatorIdx];
-        predator.health = Mathf.Min(predator.health + 25f, speciesSettings[(int)predator.species].maxHealth);
+        predator.health = Mathf.Min(predator.health + 25f, boids[preyIdx].trait.maxHealth);
         boids[predatorIdx] = predator;
 
         KillBoid(preyIdx);
@@ -1264,8 +1357,8 @@ public class BoidManager : MonoBehaviour
         boidAnimators[index].Play("Eyes_Dead", 1);
         currentEyeState[index] = "Eyes_Dead";
 
-        velocityArrows[index].gameObject.SetActive(false);
-        positionArrows[index].gameObject.SetActive(false);
+        if(simulationWithArrows)velocityArrows[index].gameObject.SetActive(false);
+        if(simulationWithArrows)positionArrows[index].gameObject.SetActive(false);
 
         StartCoroutine(DisableThisBoid(index)); // disable in 10s
     }
@@ -1371,9 +1464,9 @@ public class BoidManager : MonoBehaviour
         BoidTrait fatherTrait = boids[father].trait;
         BoidTrait motherTrait = boids[mother].trait;
 
-        float sd = 4f;
+        float sd = 1f;
 
-        mutatedTrait.size = ((fatherTrait.size + motherTrait.size) / 2.0f ) * ( 1f + GetGaussian(sd));
+        //mutatedTrait.size = ((fatherTrait.size + motherTrait.size) / 2.0f ) * ( 1f + GetGaussian(sd));
         mutatedTrait.maxHealth = Mathf.Max(1.0f, ((fatherTrait.maxHealth + motherTrait.maxHealth) / 2.0f ) * ( 1f + GetGaussian(sd)));
         mutatedTrait.contactDamage = ((fatherTrait.contactDamage + motherTrait.contactDamage) / 2.0f ) * ( 1f + GetGaussian(sd));
 
@@ -1388,6 +1481,8 @@ public class BoidManager : MonoBehaviour
         mutatedTrait.huntRadius = ((fatherTrait.huntRadius + motherTrait.huntRadius) / 2.0f ) * ( 1f + GetGaussian(sd));
         mutatedTrait.fleeWeight = ((fatherTrait.fleeWeight + motherTrait.fleeWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
         mutatedTrait.fleeRadius = ((fatherTrait.fleeRadius + motherTrait.fleeRadius) / 2.0f ) * ( 1f + GetGaussian(sd));
+
+        mutatedTrait.foodWeight = ((fatherTrait.foodWeight + motherTrait.foodWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
 
         return mutatedTrait;
 
@@ -1423,7 +1518,7 @@ public class BoidManager : MonoBehaviour
         boidTransforms[boid].rotation = Quaternion.LookRotation(boids[boid].vel);
 
         boidTransforms[boid].gameObject.SetActive(true);
-        boidTransforms[boid].localScale = new Vector3(evolvedTrait.size, evolvedTrait.size, evolvedTrait.size);
+        boidTransforms[boid].localScale = new Vector3(evolvedTrait.maxHealth / 10.0f, evolvedTrait.maxHealth / 10.0f, evolvedTrait.maxHealth / 10.0f);
 
         //boidAnimators[index].SetTrigger("Die"); 
         boidAnimators[boid].Play("Eyes_Blink", 1);

@@ -2157,15 +2157,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5cb269f7551bdb4089a4a77b40522d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaxNumberOfBoids: 1000
-  numberOfCalamari: 0
+  MaxNumberOfBoids: 500
+  numberOfCalamari: 50
   numberOfCrocodiles: 50
-  numberOfFish: 950
+  numberOfFish: 400
   speciesSettings:
   - name: Fish
     preFab: {fileID: 7413577871253316320, guid: 05a2bce6144b53b46a7e38acf9215874, type: 3}
     bodyRadius: 0.3
-    maxHealth: 5
+    maxHealth: 10
     contactDamage: 1
     cohesionWeight: 0.8
     separationWeight: 2
@@ -2180,6 +2180,7 @@ MonoBehaviour:
     huntRadius: 15
     fleeWeight: 8
     fleeRadius: 10
+    foodWeight: 1
   - name: Calamari
     preFab: {fileID: 8985896611269189197, guid: ee9b40f1280d21f488a4f6a6f907c05e, type: 3}
     bodyRadius: 0.6
@@ -2198,6 +2199,7 @@ MonoBehaviour:
     huntRadius: 15
     fleeWeight: 8
     fleeRadius: 10
+    foodWeight: 1
   - name: Crocodile
     preFab: {fileID: 3126779336002652150, guid: 81722ba4be671344f9df4cf8be0cf9e1, type: 3}
     bodyRadius: 0.5
@@ -2210,12 +2212,13 @@ MonoBehaviour:
     avoidWeight: 30
     perceptionRadius: 12
     perceptionRadiusSeparation: 6
-    maxSpeed: 7
+    maxSpeed: 12
     maxForce: 3
     huntWeight: 5
     huntRadius: 15
     fleeWeight: 8
     fleeRadius: 10
+    foodWeight: 0
   SpawnRadius: 30
   cam: {fileID: 963194229}
   InitialSpeed: 5
@@ -2223,8 +2226,8 @@ MonoBehaviour:
   boundsRadius: 30
   boundaryWeight: 10
   rotationSpeed: 280
-  simulationWithArrows: 1
-  showBoundRadius: 1
+  simulationWithArrows: 0
+  showBoundRadius: 0
   showLineVelocity: 0
   showLineVelocityAll: 0
   showLinePosition: 0
@@ -2260,6 +2263,13 @@ MonoBehaviour:
   arrowThickness: 0.08
   evolution: 1
   grapher: {fileID: 174551759}
+  food: 1
+  maxFoodCount: 200
+  foodSpawnRadius: 30
+  foodPerceptionRadius: 30
+  eatDistance: 1.5
+  healthFromFood: 25
+  passiveHealthDecayRate: 1
 --- !u!4 &1378930061
 Transform:
   m_ObjectHideFlags: 0
@@ -2785,6 +2795,57 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 10
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1892241707
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1892241709}
+  - component: {fileID: 1892241708}
+  m_Layer: 0
+  m_Name: FoodManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1892241708
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1892241707}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 87859191530b7594d92d8c0155f8fb1a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  foodPrefabs:
+  - {fileID: 2523071366405050867, guid: d364bdb2a26c2084aae0ee7964b5657f, type: 3}
+  - {fileID: 9171489583416056504, guid: 7f4d4a2ef3deb984d9faf00f41483d2e, type: 3}
+  - {fileID: 803887444639848280, guid: 13cc3a60ff3a62446bf28677c7f00066, type: 3}
+  - {fileID: 7313177774098421138, guid: e5b9dabe629e9fc4b9e5b0a5fb2e5074, type: 3}
+  totalFoodCount: 50
+  spawnRadius: 30
+--- !u!4 &1892241709
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1892241707}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1994.7018, y: 1973.95, z: -21.185877}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 15
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1920238995
 GameObject:
   m_ObjectHideFlags: 0
@@ -3123,6 +3184,50 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2013793423}
   m_CullTransparentMesh: 1
+--- !u!1 &2022051884
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2022051886}
+  - component: {fileID: 2022051885}
+  m_Layer: 0
+  m_Name: CSVGuy
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2022051885
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2022051884}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ba92515d662a9d418758e7739b6a855, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!4 &2022051886
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2022051884}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1994.7018, y: 1973.95, z: -21.185877}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 16
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &2119318904
 PrefabInstance:
   m_ObjectHideFlags: 0
