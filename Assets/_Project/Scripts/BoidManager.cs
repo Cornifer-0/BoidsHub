@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections;
 
 
-
 public enum Species : byte { Fish, Calamari, Crocodile }
 
 public struct Boid 
@@ -26,7 +25,7 @@ public struct Boid
 // For the evolution process
 public struct BoidTrait { 
 
-    public float size;
+    public float size; // to remove
     public float maxHealth;
     public float contactDamage;
 
@@ -35,7 +34,7 @@ public struct BoidTrait {
     public float alignmentWeight;
 
     public float maxSpeed;
-    public float maxForce;
+    public float maxForce; // to remove
 
     public float huntWeight;
     public float huntRadius;
@@ -500,7 +499,7 @@ public class BoidManager : MonoBehaviour
                 }
 
                 // Apply physics
-                boid.vel = Vector3.ClampMagnitude(boid.vel + accelD * Time.deltaTime, settings.maxSpeed);
+                boid.vel = Vector3.ClampMagnitude(boid.vel + accelD * Time.deltaTime, boid.trait.maxSpeed);
                 boid.pos += boid.vel * Time.deltaTime;
 
                 boids[i] = boid;
@@ -586,11 +585,11 @@ public class BoidManager : MonoBehaviour
                         //for separation
                         separationVector += (boid.pos - neighbor.pos).normalized / dist;
                     }
-                }else if(action == Interaction.Flee && dist < settings.fleeRadius) { 
+                }else if(action == Interaction.Flee && dist < boid.trait.fleeRadius) { 
                     // exponentially get away, having a hunter very close should scary you
                     // exponentially more
                     fleeVector += (boid.pos - neighbor.pos).normalized / (dist * dist);
-                }else if( action == Interaction.Hunt && dist < settings.huntRadius) { 
+                }else if( action == Interaction.Hunt && dist < boid.trait.huntRadius) { 
                     if(dist < closestPreyDist) { 
                         closestPreyDist = dist;
                         closestPreyPos = neighbor.pos;
@@ -632,13 +631,13 @@ public class BoidManager : MonoBehaviour
             string targetEyeAnimation = "Eyes_Blink";
 
             if ( fleeVector != Vector3.zero ) { 
-                accel += SteerTowards(boid, fleeVector) * settings.fleeWeight;
+                accel += SteerTowards(boid, fleeVector) * boid.trait.fleeWeight;
                 targetEyeAnimation = "Eyes_Trauma";
             }
 
             if ( foundPrey ) { 
                 Vector3 vectorToPrey = closestPreyPos - boid.pos;
-                accel += SteerTowards(boid, vectorToPrey) * settings.huntWeight;
+                accel += SteerTowards(boid, vectorToPrey) * boid.trait.huntWeight;
                 targetEyeAnimation = "Eyes_Excited";
             }
 
@@ -661,7 +660,7 @@ public class BoidManager : MonoBehaviour
             if (boids[i].isDead) continue;
 
             // Apply physics
-            boid.vel = Vector3.ClampMagnitude(boid.vel + accel * Time.deltaTime, settings.maxSpeed);
+            boid.vel = Vector3.ClampMagnitude(boid.vel + accel * Time.deltaTime, boid.trait.maxSpeed);
             boid.pos += boid.vel * Time.deltaTime;
 
             boids[i] = boid;
@@ -877,12 +876,28 @@ public class BoidManager : MonoBehaviour
         float f_ali = 0;
         float f_coh = 0;
 
+        float f_ms = 0;
+        float f_mf = 0;
+
+        float f_hw = 0;
+        float f_hr = 0;
+        float f_fw = 0;
+        float f_fr = 0;
+
         for(int i = 0; i < MaxNumberOfBoids; i++) { 
             if (boids[i].species == Species.Fish){
                 f += boids[i].trait.separationWeight;
                 f_sep += boids[i].trait.separationWeight;
                 f_coh += boids[i].trait.cohesionWeight;
                 f_ali += boids[i].trait.alignmentWeight;
+
+                f_ms += boids[i].trait.maxSpeed;
+                f_mf += boids[i].trait.maxForce;
+                
+                f_hw += boids[i].trait.huntWeight;
+                f_hr += boids[i].trait.huntRadius;
+                f_fw += boids[i].trait.fleeWeight;
+                f_fr += boids[i].trait.fleeRadius;
             }
             if (boids[i].species == Species.Calamari) c += boids[i].trait.separationWeight;
             if (boids[i].species == Species.Crocodile) cr += boids[i].trait.separationWeight; 
@@ -898,6 +913,14 @@ public class BoidManager : MonoBehaviour
         grapher.AddDataPoint(0, f_sep/numberOfFish);      // Blue line
         grapher.AddDataPoint(1, f_coh/numberOfFish);  // Cyan line
         grapher.AddDataPoint(2, f_ali/numberOfFish); // Red line
+
+        grapher.AddDataPoint(3, f_ms/numberOfFish); 
+        grapher.AddDataPoint(4, f_mf/numberOfFish); 
+
+        grapher.AddDataPoint(5, f_hw/numberOfFish); 
+        grapher.AddDataPoint(6, f_hr/numberOfFish); 
+        grapher.AddDataPoint(7, f_fw/numberOfFish); 
+        grapher.AddDataPoint(8, f_fr/numberOfFish); 
     }
 
     private void DrawArrow(Vector3 origin, Vector3 destination, int boidNumber, Transform arrow) 
@@ -944,9 +967,9 @@ public class BoidManager : MonoBehaviour
             desiredDir = ( desiredDir + sideVector * 0.5f).normalized;
         }
 
-        Vector3 desiredVelocity = targetDirection.normalized * settings.maxSpeed;
+        Vector3 desiredVelocity = targetDirection.normalized * boid.trait.maxSpeed;
         Vector3 steer = desiredVelocity - boid.vel;
-        return Vector3.ClampMagnitude(steer, settings.maxForce);
+        return Vector3.ClampMagnitude(steer, boid.trait.maxForce);
     }
 
     private void UpdateGrid(){
@@ -1218,7 +1241,7 @@ public class BoidManager : MonoBehaviour
 
         boid.pos = boundsCenter + (Random.insideUnitSphere * (boundsRadius * 0.8f));
 
-        boid.vel = Random.onUnitSphere * settings.maxSpeed;
+        boid.vel = Random.onUnitSphere * boid.trait.maxSpeed;
 
         boids[index] = boid;
         boidTransforms[index].position = boid.pos;
@@ -1348,18 +1371,18 @@ public class BoidManager : MonoBehaviour
         BoidTrait fatherTrait = boids[father].trait;
         BoidTrait motherTrait = boids[mother].trait;
 
-        float sd = 0.2f;
+        float sd = 4f;
 
         mutatedTrait.size = ((fatherTrait.size + motherTrait.size) / 2.0f ) * ( 1f + GetGaussian(sd));
-        mutatedTrait.maxHealth = ((fatherTrait.maxHealth + motherTrait.maxHealth) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.maxHealth = Mathf.Max(1.0f, ((fatherTrait.maxHealth + motherTrait.maxHealth) / 2.0f ) * ( 1f + GetGaussian(sd)));
         mutatedTrait.contactDamage = ((fatherTrait.contactDamage + motherTrait.contactDamage) / 2.0f ) * ( 1f + GetGaussian(sd));
 
         mutatedTrait.cohesionWeight = ((fatherTrait.cohesionWeight + motherTrait.cohesionWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
         mutatedTrait.separationWeight = ((fatherTrait.separationWeight + motherTrait.separationWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
         mutatedTrait.alignmentWeight = ((fatherTrait.alignmentWeight + motherTrait.alignmentWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
 
-        mutatedTrait.maxForce = ((fatherTrait.maxForce + motherTrait.maxForce) / 2.0f ) * ( 1f + GetGaussian(sd));
-        mutatedTrait.maxSpeed = ((fatherTrait.maxSpeed + motherTrait.maxSpeed) / 2.0f ) * ( 1f + GetGaussian(sd));
+        mutatedTrait.maxForce = Mathf.Max(1.0f, ((fatherTrait.maxForce + motherTrait.maxForce) / 2.0f ) * ( 1f + GetGaussian(sd)));
+        mutatedTrait.maxSpeed = Mathf.Max(1.0f, ((fatherTrait.maxSpeed + motherTrait.maxSpeed) / 2.0f ) * ( 1f + GetGaussian(sd)));
 
         mutatedTrait.huntWeight = ((fatherTrait.huntWeight + motherTrait.huntWeight) / 2.0f ) * ( 1f + GetGaussian(sd));
         mutatedTrait.huntRadius = ((fatherTrait.huntRadius + motherTrait.huntRadius) / 2.0f ) * ( 1f + GetGaussian(sd));
@@ -1386,10 +1409,18 @@ public class BoidManager : MonoBehaviour
 
         boids[boid].trait = evolvedTrait;
         boids[boid].isDead = false;
-        boids[boid].health = evolvedTrait.maxHealth;
+        boids[boid].health = Mathf.Min(1.0f, evolvedTrait.maxHealth);
         boids[boid].enabled = true;
 
         boids[boid].ticksSurvived = 0; // just born
+
+        Vector3 randSpawn = getRandomSpawn();
+        boids[boid].pos = randSpawn;
+        boidTransforms[boid].position = randSpawn;
+
+        Vector3 randD = getRandomDirection();
+        boids[boid].vel = randD * InitialSpeed;
+        boidTransforms[boid].rotation = Quaternion.LookRotation(boids[boid].vel);
 
         boidTransforms[boid].gameObject.SetActive(true);
         boidTransforms[boid].localScale = new Vector3(evolvedTrait.size, evolvedTrait.size, evolvedTrait.size);

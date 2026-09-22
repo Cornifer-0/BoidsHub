@@ -14,6 +14,7 @@ public class Grapher : Graphic
     {
         public string label;
         public Color lineColor = Color.white;
+        public TMP_Text endLabel; // <-- Assign your TextMeshPro label here
         [HideInInspector] public List<float> points = new List<float>();
     }
 
@@ -28,6 +29,7 @@ public class Grapher : Graphic
     [SerializeField] private Color gridColor = new Color(1f, 1f, 1f, 0.1f);
     [SerializeField] private Color borderColor = new Color(1f, 1f, 1f, 0.25f);
     [SerializeField] private int horizontalGridLines = 4;
+    [SerializeField] private Vector2 labelOffset = new Vector2(10f, 0f); // Pixel offset right/left of line end
 
     [Header("UI Text Bindings (Optional)")]
     public string graphTitle = "Population Size";
@@ -46,6 +48,67 @@ public class Grapher : Graphic
         }
 
         SetVerticesDirty();
+    }
+
+    private void LateUpdate()
+    {
+        UpdateLabelsAndPositions();
+    }
+
+    private void UpdateLabelsAndPositions()
+    {
+        if (lines.Count == 0) return;
+
+        Rect rect = rectTransform.rect;
+
+        // Calculate highest Y scale across all lines
+        float maxY = fixedMaxY;
+        if (maxY <= 0f)
+        {
+            foreach (var line in lines)
+            {
+                foreach (float val in line.points)
+                    if (val > maxY) maxY = val;
+            }
+            maxY = Mathf.Max(maxY, 1f);
+        }
+
+        // Global Axis Text Updates
+        if (titleText != null) titleText.text = graphTitle;
+        if (yMaxText != null) yMaxText.text = maxY.ToString("F2");
+        if (yMinText != null) yMinText.text = "0";
+
+        // Update each line's floating end label
+        foreach (var line in lines)
+        {
+            if (line.endLabel == null) continue;
+
+            int pointCount = line.points.Count;
+            if (pointCount == 0)
+            {
+                line.endLabel.gameObject.SetActive(false);
+                continue;
+            }
+
+            line.endLabel.gameObject.SetActive(true);
+
+            float latestValue = line.points[pointCount - 1];
+
+            // 1. Format String
+            line.endLabel.text = string.IsNullOrEmpty(line.label)
+                ? $"{latestValue:F2}"
+                : $"{line.label}: {latestValue:F2}";
+
+            line.endLabel.color = line.lineColor;
+
+            // 2. Calculate local endpoint position inside Grapher Rect
+            float x = rect.xMax; // Last point always reaches the right border
+            float y = rect.yMin + Mathf.Clamp01(latestValue / maxY) * rect.height;
+            Vector3 localEndpoint = new Vector3(x + labelOffset.x, y + labelOffset.y, 0f);
+
+            // 3. Convert local graph position to World Space for accurate placement
+            line.endLabel.transform.position = transform.TransformPoint(localEndpoint);
+        }
     }
 
     protected override void OnPopulateMesh(VertexHelper vh)
@@ -70,13 +133,8 @@ public class Grapher : Graphic
                 foreach (float val in line.points)
                     if (val > maxY) maxY = val;
             }
-            maxY = Mathf.Max(maxY, 0.2f);
+            maxY = Mathf.Max(maxY, 1f);
         }
-
-        // Update UI Text Labels
-        if (titleText != null) titleText.text = graphTitle;
-        if (yMaxText != null) yMaxText.text = maxY.ToString("F0");
-        if (yMinText != null) yMinText.text = "0";
 
         // 3. Render Data Lines & Smooth Joint Caps
         foreach (var line in lines)
@@ -88,12 +146,10 @@ public class Grapher : Graphic
 
             for (int i = 0; i < pointCount; i++)
             {
-                // Dynamically divides X width across current active points (1 / (N - 1))
                 float x = rect.xMin + ((float)i / (pointCount - 1)) * rect.width;
                 float y = rect.yMin + Mathf.Clamp01(line.points[i] / maxY) * rect.height;
                 Vector2 currentPos = new Vector2(x, y);
 
-                // Draw joint cap at every data point
                 DrawJointCap(vh, currentPos, line.lineColor);
 
                 if (i > 0)
@@ -120,14 +176,12 @@ public class Grapher : Graphic
 
     private void DrawGridAndBorder(VertexHelper vh, Rect rect)
     {
-        // Horizontal Grid Lines
         for (int i = 1; i <= horizontalGridLines; i++)
         {
             float y = rect.yMin + (rect.height / (horizontalGridLines + 1)) * i;
             DrawLineSegment(vh, new Vector2(rect.xMin, y), new Vector2(rect.xMax, y), gridColor, 1f);
         }
 
-        // Outer Frame Border
         DrawLineSegment(vh, new Vector2(rect.xMin, rect.yMin), new Vector2(rect.xMin, rect.yMax), borderColor, 1.5f);
         DrawLineSegment(vh, new Vector2(rect.xMin, rect.yMax), new Vector2(rect.xMax, rect.yMax), borderColor, 1.5f);
         DrawLineSegment(vh, new Vector2(rect.xMax, rect.yMax), new Vector2(rect.xMax, rect.yMin), borderColor, 1.5f);
