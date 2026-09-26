@@ -8,47 +8,69 @@ public class BoidCameraFollow : MonoBehaviour
     [Header("Follow Settings")]
     public bool isFollowing = false;
     public int targetBoidIndex = 0;
+    [Tooltip("When enabled, the camera turns automatically with the fish's forward heading.")]
+    public bool followFishRotation = true;
+    public float turnRelaxation = 3f; // Higher values make camera follow fish turns faster
 
-    [Header("Camera Offset & Motion")]
-    public Vector3 offset = new Vector3(0f, 2f, -5f); // Position relative to fish
-    public float positionSmoothTime = 0.3f;
-    
-    [Header("Camera Rotation & Framing")]
-    public float lookAheadDistance = 3f;
-    public float rotationSpeed = 3f;
-    public float turnRelaxation = 2f;
-
-    [Header("Overview Orbit & Zoom Settings")]
-    public Vector3 centerPoint = Vector3.zero;
+    [Header("Controls & Inversion")]
+    public bool invertMouseX = false;
+    public bool invertMouseY = false;
     public float orbitSensitivity = 3f;
     public float zoomSensitivity = 10f;
-    public float minDistance = 5f;
+
+    [Header("Orbit Bounds")]
+    public Vector3 centerPoint = Vector3.zero;
+    public float minDistance = 2f;
     public float maxDistance = 150f;
-    public float orbitSmoothTime = 0.15f;
     public float pitchMin = -80f;
     public float pitchMax = 80f;
 
-    // Follow Mode State
-    private Vector3 currentVelocity;
-    private Vector3 smoothedForward = Vector3.forward;
+    [Header("Smoothing")]
+    public float positionSmoothTime = 0.2f;
+    public float rotationSpeed = 8f;
+    public float orbitSmoothTime = 0.1f;
 
-    // Orbit Mode State
-    private float targetYaw;
-    private float targetPitch;
-    private float currentYaw;
-    private float currentPitch;
-    private float targetDistance = 30f;
-    private float currentDistance = 30f;
+    // Internal State
+    private Vector3 currentVelocity;
+    private Vector3 smoothedFishForward = Vector3.forward;
+
+    private float targetYaw = 0f;
+    private float targetPitch = 15f; // Slight overhead angle by default
+    private float currentYaw = 0f;
+    private float currentPitch = 15f;
+
+    private float targetDistance = 10f;
+    private float currentDistance = 10f;
     private float distanceVelocity;
+
+    private bool lastIsFollowing;
+    private int lastTargetBoidIndex;
 
     void Start()
     {
-        InitializeOrbitFromCurrentPosition();
+        lastIsFollowing = isFollowing;
+        lastTargetBoidIndex = targetBoidIndex;
+
+        if (isFollowing && boidManager != null)
+        {
+            Vector3 fishVel = boidManager.getFishSpeed(targetBoidIndex);
+            if (fishVel.sqrMagnitude > 0.01f) smoothedFishForward = fishVel.normalized;
+        }
     }
 
     void LateUpdate()
     {
         if (boidManager == null) return;
+
+        // Reset angles on mode/target switch to avoid camera snaps
+        if (isFollowing != lastIsFollowing || (isFollowing && targetBoidIndex != lastTargetBoidIndex))
+        {
+            OnTargetOrModeChanged();
+            lastIsFollowing = isFollowing;
+            lastTargetBoidIndex = targetBoidIndex;
+        }
+
+        ProcessInput();
 
         if (isFollowing)
         {
@@ -56,89 +78,93 @@ public class BoidCameraFollow : MonoBehaviour
         }
         else
         {
-            UpdateOverviewOrbitMode();
+            UpdateOverviewMode();
         }
     }
 
-    private void UpdateFollowMode()
+    private void ProcessInput()
     {
-        Vector3 targetPos = boidManager.getFishPosition(targetBoidIndex);
-        Vector3 targetVel = boidManager.getFishSpeed(targetBoidIndex);
-
-        // 1. Calculate relaxed forward direction
-        if (targetVel.sqrMagnitude > 0.1f)
-        {
-            Vector3 actualFishForward = targetVel.normalized;
-            smoothedForward = Vector3.Slerp(smoothedForward, actualFishForward, turnRelaxation * Time.deltaTime);
-        }
-
-        // 2. Calculate position using relaxed rotation
-        Quaternion smoothedRotation = Quaternion.LookRotation(smoothedForward);
-        Vector3 desiredPosition = targetPos + (smoothedRotation * offset);
-
-        // 3. Smoothly interpolate position
-        transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, positionSmoothTime);
-
-        // 4. Look ahead of fish
-        Vector3 lookTarget = targetPos + (smoothedForward * lookAheadDistance);
-        Vector3 directionToLook = lookTarget - transform.position;
-
-        if (directionToLook.sqrMagnitude > 0.1f)
-        {
-            Quaternion lookAtRotation = Quaternion.LookRotation(directionToLook);
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookAtRotation, rotationSpeed * Time.deltaTime);
-        }
-
-        // Keep orbit variables synced so switching off follow mode transitions smoothly
-        InitializeOrbitFromCurrentPosition();
-    }
-
-    private void UpdateOverviewOrbitMode()
-    {
-        // 1. Mouse Drag for Orbiting (Left or Right Click)
+        // Mouse Drag Orbit Input
         if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
         {
-            targetYaw += Input.GetAxis("Mouse X") * orbitSensitivity;
-            targetPitch -= Input.GetAxis("Mouse Y") * orbitSensitivity;
+            float mouseX = Input.GetAxis("Mouse X") * orbitSensitivity * (invertMouseX ? -1f : 1f);
+            float mouseY = Input.GetAxis("Mouse Y") * orbitSensitivity * (invertMouseY ? -1f : 1f);
+
+            targetYaw += mouseX;
+            targetPitch -= mouseY; // Standard orbit pitch (dragging up orbits higher)
             targetPitch = Mathf.Clamp(targetPitch, pitchMin, pitchMax);
         }
 
-        // 2. Mouse Wheel for Zooming
+        // Mouse Wheel Zoom
         float scroll = Input.GetAxis("Mouse ScrollWheel");
         if (Mathf.Abs(scroll) > 0.001f)
         {
             targetDistance -= scroll * zoomSensitivity;
             targetDistance = Mathf.Clamp(targetDistance, minDistance, maxDistance);
         }
+    }
 
-        // 3. Smooth Orbit Angles and Zoom Distance
+    private void UpdateFollowMode()
+    {
+        Vector3 fishPos = boidManager.getFishPosition(targetBoidIndex);
+        Vector3 fishVel = boidManager.getFishSpeed(targetBoidIndex);
+
+        Quaternion baseRotation = Quaternion.identity;
+
+        // 1. Calculate base rotation matching the fish's velocity vector
+        if (followFishRotation)
+        {
+            if (fishVel.sqrMagnitude > 0.01f)
+            {
+                smoothedFishForward = Vector3.Slerp(smoothedFishForward, fishVel.normalized, turnRelaxation * Time.deltaTime);
+            }
+
+            // Keep world-up alignment to prevent nauseating camera roll when fish pitches straight up/down
+            Vector3 upDir = Mathf.Abs(Vector3.Dot(smoothedFishForward, Vector3.up)) > 0.98f ? Vector3.forward : Vector3.up;
+            baseRotation = Quaternion.LookRotation(smoothedFishForward, upDir);
+        }
+
+        // 2. Apply combined orbit transform around fish position
+        ApplyOrbitTransformation(fishPos, baseRotation);
+    }
+
+    private void UpdateOverviewMode()
+    {
+        // Overview orbits around static centerPoint with world identity heading
+        ApplyOrbitTransformation(centerPoint, Quaternion.identity);
+    }
+
+    private void ApplyOrbitTransformation(Vector3 pivotPoint, Quaternion baseRotation)
+    {
+        // Smooth local yaw, pitch, and zoom distance
         currentYaw = Mathf.LerpAngle(currentYaw, targetYaw, Time.deltaTime / Mathf.Max(0.001f, orbitSmoothTime));
         currentPitch = Mathf.LerpAngle(currentPitch, targetPitch, Time.deltaTime / Mathf.Max(0.001f, orbitSmoothTime));
         currentDistance = Mathf.SmoothDamp(currentDistance, targetDistance, ref distanceVelocity, orbitSmoothTime);
 
-        // 4. Compute Position & Rotation relative to centerPoint (0,0,0)
-        Quaternion rotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
-        Vector3 desiredPosition = centerPoint + (rotation * new Vector3(0f, 0f, -currentDistance));
+        // Combine fish heading base rotation with user pitch/yaw mouse offsets
+        Quaternion localOrbit = Quaternion.Euler(currentPitch, currentYaw, 0f);
+        Quaternion finalRotation = baseRotation * localOrbit;
 
+        // Position camera behind pivot point relative to final rotation
+        Vector3 desiredPosition = pivotPoint - (finalRotation * Vector3.forward * currentDistance);
+
+        // Apply position and rotation synchronously
         transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, positionSmoothTime);
-        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(centerPoint - transform.position), rotationSpeed * Time.deltaTime);
+        transform.rotation = Quaternion.Slerp(transform.rotation, finalRotation, rotationSpeed * Time.deltaTime);
     }
 
-    private void InitializeOrbitFromCurrentPosition()
+    private void OnTargetOrModeChanged()
     {
-        Vector3 dir = transform.position - centerPoint;
-        if (dir.sqrMagnitude < 0.001f) dir = new Vector3(0f, 0f, -10f);
+        // Reset orbit offsets to frame newly selected fish nicely from behind
+        targetYaw = 0f;
+        targetPitch = 15f;
+        currentYaw = 0f;
+        currentPitch = 15f;
 
-        currentDistance = dir.magnitude;
-        targetDistance = Mathf.Clamp(currentDistance, minDistance, maxDistance);
-
-        Quaternion rot = Quaternion.LookRotation(-dir.normalized);
-        currentYaw = rot.eulerAngles.y;
-        currentPitch = rot.eulerAngles.x;
-
-        if (currentPitch > 180f) currentPitch -= 360f;
-
-        targetYaw = currentYaw;
-        targetPitch = currentPitch;
+        if (isFollowing)
+        {
+            Vector3 fishVel = boidManager.getFishSpeed(targetBoidIndex);
+            if (fishVel.sqrMagnitude > 0.01f) smoothedFishForward = fishVel.normalized;
+        }
     }
 }

@@ -214,6 +214,8 @@ public class BoidManager : MonoBehaviour
     public bool evolution = true;
 
     private List<int> candidateParents = new List<int>(128);
+    private float totalSimTime = 0f;
+
 
     [Header("UI")]
     public Grapher grapher;
@@ -928,6 +930,32 @@ public class BoidManager : MonoBehaviour
 
 
 
+        // VFX
+
+        if (AudioManager.Instance != null && Camera.main != null)
+        {
+            Vector3 camPos = Camera.main.transform.position;
+            Vector3 closestFishPos = camPos;
+            float closestDistSqr = float.MaxValue;
+
+            for (int i = 0; i < MaxNumberOfBoids; i++)
+            {
+                if (!boids[i].isDead && boids[i].species == Species.Fish)
+                {
+                    float distSqr = (boids[i].pos - camPos).sqrMagnitude;
+                    if (distSqr < closestDistSqr)
+                    {
+                        closestDistSqr = distSqr;
+                        closestFishPos = boids[i].pos;
+                    }
+                }
+            }
+
+            AudioManager.Instance.UpdateSwimmingAmbient(closestFishPos);
+        }
+
+
+
         // UI 
 
         sampleTimer += Time.deltaTime;
@@ -948,7 +976,6 @@ public class BoidManager : MonoBehaviour
     }
 
 
-    private float totalSimTime = 0f;
 
     private void SendGraphData()
     {
