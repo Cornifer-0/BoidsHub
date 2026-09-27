@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
-
+using TMPro;
 
 public enum Species : byte { Fish, Calamari, Crocodile }
 
@@ -255,6 +255,8 @@ public class BoidManager : MonoBehaviour
         if ( simulationWithArrows ) obstacleArrows = new Transform[MaxNumberOfBoids];
         if ( simulationWithArrows ) collisionSpheres = new  Transform[MaxNumberOfBoids];
 
+        GameObject arrowContainer = new GameObject("Arrow_container");
+
         // Generate the 50 cubes for our pool
         float visualSize = cellSize * 1f; // 5% gap
 
@@ -364,38 +366,23 @@ public class BoidManager : MonoBehaviour
 
             if(simulationWithArrows) { 
                 // Velcoity
-                GameObject cy = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                GameObject arrowObj = new GameObject($"Arrow_vel{i}");
+                arrowObj.transform.SetParent(arrowContainer.transform);
 
-                Destroy(cy.GetComponent<Collider>());
-
-                MeshRenderer renderer = cy.GetComponent<MeshRenderer>();
-                renderer.material = new Material(Shader.Find("Sprites/Default"));
-                renderer.material.color = Color.red;
-
-                velocityArrows[i] = cy.transform;
+                velocityArrows[i] = arrowObj.transform;
 
                 // Position
-                GameObject cy2 = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                GameObject arrowObj2 = new GameObject($"Arrow_pos{i}");
+                arrowObj2.transform.SetParent(arrowContainer.transform);
 
-                Destroy(cy2.GetComponent<Collider>());
-
-                MeshRenderer renderer2 = cy2.GetComponent<MeshRenderer>();
-                renderer2.material = new Material(Shader.Find("Sprites/Default"));
-                renderer2.material.color = Color.green;
-
-                positionArrows[i] = cy2.transform;
+                positionArrows[i] = arrowObj2.transform;
 
                 // Obstacle
-                GameObject obs = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                GameObject arrowObj3 = new GameObject($"Arrow_obs{i}");
+                arrowObj3.transform.SetParent(arrowContainer.transform);
 
-                Destroy(obs.GetComponent<Collider>());
-
-                MeshRenderer renderer3 = obs.GetComponent<MeshRenderer>();
-                renderer3.material = new Material(Shader.Find("Sprites/Default"));
-                renderer3.material.color = Color.yellow;
-
-                obstacleArrows[i] = obs.transform;
-                obstacleArrows[i].gameObject.SetActive(false);
+                obstacleArrows[i] = arrowObj3.transform;
+                //obstacleArrows[i].gameObject.SetActive(false);
 
                 //Spheres of perceptions
                 GameObject ps = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -800,7 +787,7 @@ public class BoidManager : MonoBehaviour
 
                 if (shouldDraw) 
                 { 
-                    DrawArrow(boid.pos, boid.pos + boid.vel, i, velocityArrows[i]);
+                    DrawArrow(boid.pos, boid.pos + boid.vel, velocityArrows[i], "Velocity", Color.cyan);
                 }
 
                 // position
@@ -810,7 +797,7 @@ public class BoidManager : MonoBehaviour
                 positionArrows[i].gameObject.SetActive(shouldDraw);
 
                 if ( shouldDraw) { 
-                    DrawArrow(Vector3.zero, boid.pos, i, positionArrows[i]);
+                    DrawArrow(Vector3.zero, boid.pos, positionArrows[i], "Position", Color.green);
                 }
 
             
@@ -891,7 +878,7 @@ public class BoidManager : MonoBehaviour
                         Vector3 visualForce = hit.normal * (urgency + panicMultiplier);
 
                         obstacleArrows[i].gameObject.SetActive(true);
-                        DrawArrow(boid.pos, boid.pos + visualForce, i, obstacleArrows[i]); 
+                        DrawArrow(boid.pos, boid.pos + visualForce, obstacleArrows[i], "Escape Force"); 
                     }
                     else
                     {
@@ -1043,30 +1030,175 @@ public class BoidManager : MonoBehaviour
         }
     }
 
-    private void DrawArrow(Vector3 origin, Vector3 destination, int boidNumber, Transform arrow) 
-    { 
-        // LineRenderer arrow = velocityArrows[boidNumber];
-
-        // arrow.startColor = col;
-        // arrow.endColor = col;
-
-        // arrow.SetPosition(0, origin);
-        // arrow.SetPosition(1, destination);
-
+    private void DrawArrow(
+        Vector3 origin, 
+        Vector3 destination, 
+        Transform arrowRoot, 
+        string labelText = "", 
+        Color color = default, 
+        float thickness = 0.08f, 
+        float headLength = 0.4f,
+        float labelOffset = 0.5f) // Configurable distance past the arrow tip
+    {
         Vector3 direction = destination - origin;
-        float distance = direction.magnitude;
+        float totalDistance = direction.magnitude;
 
-        if ( distance < 0.001f)  {
-            arrow.localScale = Vector3.zero;
+        if (totalDistance < 0.001f)
+        {
+            arrowRoot.gameObject.SetActive(false);
             return;
         }
 
-        arrow.position = origin +  (direction / 2f);
+        arrowRoot.gameObject.SetActive(true);
 
-        float thickness = 0.1f;
-        arrow.localScale = new Vector3(thickness, distance / 2f, thickness);
-        arrow.rotation = Quaternion.FromToRotation(Vector3.up, direction);
+        EnsureArrowComponents(arrowRoot, out Transform shaft, out Transform head, out TextMeshPro tmpLabel);
+
+        Vector3 dirNormalized = direction / totalDistance;
+        Quaternion arrowRotation = Quaternion.FromToRotation(Vector3.up, dirNormalized);
+
+        float actualHeadLength = Mathf.Min(headLength, totalDistance);
+        float shaftLength = Mathf.Max(0f, totalDistance - actualHeadLength);
+
+        // 1. SHAFT
+        if (shaftLength > 0.001f)
+        {
+            shaft.gameObject.SetActive(true);
+            shaft.position = origin + (dirNormalized * (shaftLength / 2f));
+            shaft.rotation = arrowRotation;
+            shaft.localScale = new Vector3(thickness, shaftLength / 2f, thickness);
+            SetColor(shaft, color);
+        }
+        else
+        {
+            shaft.gameObject.SetActive(false);
+        }
+
+        // 2. HEAD (Cone Tip)
+        head.gameObject.SetActive(true);
+        head.position = origin + (dirNormalized * shaftLength);
+        head.rotation = arrowRotation;
+        head.localScale = new Vector3(thickness * 2.5f, actualHeadLength, thickness * 2.5f);
+        SetColor(head, color);
+
+        // 3. TEXTMESH PRO LABEL
+        if (!string.IsNullOrEmpty(labelText) && tmpLabel != null)
+        {
+            tmpLabel.gameObject.SetActive(true);
+            tmpLabel.text = labelText;
+            tmpLabel.color = color;
+            tmpLabel.fontSize = 2f;
+
+            // Position label beyond the cone tip to prevent overlapping
+            tmpLabel.transform.position = destination + (dirNormalized * labelOffset);
+
+            // Screen-aligned billboard: exact camera rotation keeps text horizontal to viewport
+            if (Camera.main != null)
+            {
+                tmpLabel.transform.rotation = Camera.main.transform.rotation;
+            }
+        }
+        else if (tmpLabel != null)
+        {
+            tmpLabel.gameObject.SetActive(false);
+        }
     }
+
+    private void EnsureArrowComponents(Transform root, out Transform shaft, out Transform head, out TextMeshPro label)
+    {
+        // Shaft (Cylinder)
+        shaft = root.Find("Shaft");
+        if (shaft == null)
+        {
+            GameObject shaftObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            shaftObj.name = "Shaft";
+            shaftObj.transform.SetParent(root);
+            Destroy(shaftObj.GetComponent<Collider>());
+            shaft = shaftObj.transform;
+        }
+
+        // Head (Procedural Cone)
+        head = root.Find("Head");
+        if (head == null)
+        {
+            GameObject headObj = new GameObject("Head");
+            headObj.transform.SetParent(root);
+
+            MeshFilter mf = headObj.AddComponent<MeshFilter>();
+            MeshRenderer mr = headObj.AddComponent<MeshRenderer>();
+            mf.mesh = CreateConeMesh(12);
+            mr.material = new Material(Shader.Find("Sprites/Default"));
+            head = headObj.transform;
+        }
+
+        // Label (3D TextMeshPro)
+        Transform labelTransform = root.Find("Label");
+        if (labelTransform == null)
+        {
+            GameObject labelObj = new GameObject("Label");
+            labelObj.transform.SetParent(root);
+
+            label = labelObj.AddComponent<TextMeshPro>();
+            label.fontSize = 4f; // TMP size in 3D world units
+            label.alignment = TextAlignmentOptions.Center;
+            label.rectTransform.sizeDelta = new Vector2(5f, 2f); // Set boundary size so text doesn't wrap
+        }
+        else
+        {
+            label = labelTransform.GetComponent<TextMeshPro>();
+        }
+    }
+
+    // Procedural Mesh Generator for a Cone (Tip pointing upalong Y-axis)
+    private Mesh CreateConeMesh(int subdivisions)
+    {
+        Mesh mesh = new Mesh();
+        Vector3[] vertices = new Vector3[subdivisions + 2];
+        int[] triangles = new int[subdivisions * 3 * 2];
+
+        vertices[0] = new Vector3(0, 1f, 0); // Tip
+        vertices[1] = Vector3.zero;          // Base Center
+
+        float radius = 0.5f;
+        for (int i = 0; i < subdivisions; i++)
+        {
+            float angle = (i / (float)subdivisions) * Mathf.PI * 2f;
+            vertices[i + 2] = new Vector3(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
+        }
+
+        int triIndex = 0;
+        for (int i = 0; i < subdivisions; i++)
+        {
+            int next = (i + 1) % subdivisions;
+            
+            // Side triangles
+            triangles[triIndex++] = 0;
+            triangles[triIndex++] = i + 2;
+            triangles[triIndex++] = next + 2;
+
+            // Base triangles
+            triangles[triIndex++] = 1;
+            triangles[triIndex++] = next + 2;
+            triangles[triIndex++] = i + 2;
+        }
+
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        return mesh;
+    }
+
+    private void SetColor(Transform part, Color c)
+    {
+        Renderer r = part.GetComponent<Renderer>();
+        if (r != null)
+        {
+            if (r.material == null || r.material.shader.name != "Sprites/Default")
+                r.material = new Material(Shader.Find("Sprites/Default"));
+                
+            r.material.color = c;
+        }
+    }
+
 
     private Vector3 SteerTowards(Boid boid, Vector3 targetDirection) { 
         if (targetDirection == Vector3.zero) return Vector3.zero;

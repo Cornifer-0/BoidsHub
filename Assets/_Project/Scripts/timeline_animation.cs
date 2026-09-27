@@ -4,15 +4,33 @@ using UnityEngine;
 
 public class timeline_animation : MonoBehaviour
 {
-    // Start is called before the first frame update
+    
+    public BoidManager bm;
+    public WorldCoordinatesVisualizer wcv;
+
     void Start()
     {
-        
+        StartCoroutine(routine());
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
+    
+    private IEnumerator routine(){
+
+        yield return new WaitForSeconds(4f);
+
+        wcv.showAxes = true;
+
+        yield return new WaitForSeconds(5f);
+
+        bm.showLinePosition = true;
+
+        yield return new WaitForSeconds(1f);
+
+        bm.showLineVelocity = true;
+
+        yield return new WaitForSeconds(2f);
+
+        bm.showBoundRadius = true;
+
     }
 }

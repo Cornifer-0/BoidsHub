@@ -8,9 +8,10 @@ public class BoidCameraFollow : MonoBehaviour
     [Header("Follow Settings")]
     public bool isFollowing = false;
     public int targetBoidIndex = 0;
-    [Tooltip("When enabled, the camera turns automatically with the fish's forward heading.")]
-    public bool followFishRotation = true;
-    public float turnRelaxation = 3f; // Higher values make camera follow fish turns faster
+
+    [Tooltip("If TRUE: Camera automatically rotates with the fish's forward heading.\nIf FALSE: Camera only follows fish position, remaining oriented to world space unless manually rotated via mouse.")]
+    public bool followFishRotation = false; 
+    public float turnRelaxation = 3f;
 
     [Header("Controls & Inversion")]
     public bool invertMouseX = false;
@@ -35,7 +36,7 @@ public class BoidCameraFollow : MonoBehaviour
     private Vector3 smoothedFishForward = Vector3.forward;
 
     private float targetYaw = 0f;
-    private float targetPitch = 15f; // Slight overhead angle by default
+    private float targetPitch = 15f; 
     private float currentYaw = 0f;
     private float currentPitch = 15f;
 
@@ -45,11 +46,13 @@ public class BoidCameraFollow : MonoBehaviour
 
     private bool lastIsFollowing;
     private int lastTargetBoidIndex;
+    private bool lastFollowFishRotation;
 
     void Start()
     {
         lastIsFollowing = isFollowing;
         lastTargetBoidIndex = targetBoidIndex;
+        lastFollowFishRotation = followFishRotation;
 
         if (isFollowing && boidManager != null)
         {
@@ -62,15 +65,19 @@ public class BoidCameraFollow : MonoBehaviour
     {
         if (boidManager == null) return;
 
-        // Reset angles on mode/target switch to avoid camera snaps
-        if (isFollowing != lastIsFollowing || (isFollowing && targetBoidIndex != lastTargetBoidIndex))
+        // Process mouse and keyboard inputs
+        ProcessInput();
+
+        // Reset angles on mode, target, or rotation setting switch to prevent camera snaps
+        if (isFollowing != lastIsFollowing || 
+            (isFollowing && targetBoidIndex != lastTargetBoidIndex) || 
+            followFishRotation != lastFollowFishRotation)
         {
             OnTargetOrModeChanged();
             lastIsFollowing = isFollowing;
             lastTargetBoidIndex = targetBoidIndex;
+            lastFollowFishRotation = followFishRotation;
         }
-
-        ProcessInput();
 
         if (isFollowing)
         {
@@ -84,14 +91,55 @@ public class BoidCameraFollow : MonoBehaviour
 
     private void ProcessInput()
     {
-        // Mouse Drag Orbit Input
+        // -------------------------------------------------------------
+        // KEYBOARD SHORTCUTS
+        // -------------------------------------------------------------
+
+        // 1. SPACE BAR: Toggle between Following Target and Center Overview
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            isFollowing = !isFollowing;
+        }
+
+        // 2. R KEY: Toggle rotation following on/off
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            followFishRotation = !followFishRotation;
+        }
+
+        // 3. ARROW KEYS: Cycle target fish index
+        if (boidManager != null && boidManager.MaxNumberOfBoids > 0)
+        {
+            // Next fish (Right or Up Arrow)
+            if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                targetBoidIndex = (targetBoidIndex + 1) % boidManager.MaxNumberOfBoids;
+                isFollowing = true; // Auto-enable follow mode when selecting a new target
+            }
+            // Previous fish (Left or Down Arrow)
+            else if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                targetBoidIndex--;
+                if (targetBoidIndex < 0)
+                {
+                    targetBoidIndex = boidManager.MaxNumberOfBoids - 1;
+                }
+                isFollowing = true;
+            }
+        }
+
+        // -------------------------------------------------------------
+        // MOUSE CONTROLS
+        // -------------------------------------------------------------
+
+        // Mouse Drag Orbit Input (Left or Right Click)
         if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
         {
             float mouseX = Input.GetAxis("Mouse X") * orbitSensitivity * (invertMouseX ? -1f : 1f);
             float mouseY = Input.GetAxis("Mouse Y") * orbitSensitivity * (invertMouseY ? -1f : 1f);
 
             targetYaw += mouseX;
-            targetPitch -= mouseY; // Standard orbit pitch (dragging up orbits higher)
+            targetPitch -= mouseY;
             targetPitch = Mathf.Clamp(targetPitch, pitchMin, pitchMax);
         }
 
@@ -111,7 +159,6 @@ public class BoidCameraFollow : MonoBehaviour
 
         Quaternion baseRotation = Quaternion.identity;
 
-        // 1. Calculate base rotation matching the fish's velocity vector
         if (followFishRotation)
         {
             if (fishVel.sqrMagnitude > 0.01f)
@@ -119,43 +166,35 @@ public class BoidCameraFollow : MonoBehaviour
                 smoothedFishForward = Vector3.Slerp(smoothedFishForward, fishVel.normalized, turnRelaxation * Time.deltaTime);
             }
 
-            // Keep world-up alignment to prevent nauseating camera roll when fish pitches straight up/down
             Vector3 upDir = Mathf.Abs(Vector3.Dot(smoothedFishForward, Vector3.up)) > 0.98f ? Vector3.forward : Vector3.up;
             baseRotation = Quaternion.LookRotation(smoothedFishForward, upDir);
         }
 
-        // 2. Apply combined orbit transform around fish position
         ApplyOrbitTransformation(fishPos, baseRotation);
     }
 
     private void UpdateOverviewMode()
     {
-        // Overview orbits around static centerPoint with world identity heading
         ApplyOrbitTransformation(centerPoint, Quaternion.identity);
     }
 
     private void ApplyOrbitTransformation(Vector3 pivotPoint, Quaternion baseRotation)
     {
-        // Smooth local yaw, pitch, and zoom distance
         currentYaw = Mathf.LerpAngle(currentYaw, targetYaw, Time.deltaTime / Mathf.Max(0.001f, orbitSmoothTime));
         currentPitch = Mathf.LerpAngle(currentPitch, targetPitch, Time.deltaTime / Mathf.Max(0.001f, orbitSmoothTime));
         currentDistance = Mathf.SmoothDamp(currentDistance, targetDistance, ref distanceVelocity, orbitSmoothTime);
 
-        // Combine fish heading base rotation with user pitch/yaw mouse offsets
         Quaternion localOrbit = Quaternion.Euler(currentPitch, currentYaw, 0f);
         Quaternion finalRotation = baseRotation * localOrbit;
 
-        // Position camera behind pivot point relative to final rotation
         Vector3 desiredPosition = pivotPoint - (finalRotation * Vector3.forward * currentDistance);
 
-        // Apply position and rotation synchronously
         transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, positionSmoothTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, finalRotation, rotationSpeed * Time.deltaTime);
     }
 
     private void OnTargetOrModeChanged()
     {
-        // Reset orbit offsets to frame newly selected fish nicely from behind
         targetYaw = 0f;
         targetPitch = 15f;
         currentYaw = 0f;

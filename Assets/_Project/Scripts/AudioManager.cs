@@ -55,7 +55,7 @@ public class AudioManager : MonoBehaviour
         float distance = Vector3.Distance(mainCameraTransform.position, closestFishPosition);
 
         // Volume scales from 1.0 (close) to 0.0 (farther than maxProximityDistance)
-        float targetVolume = Mathf.Clamp01(1f - (distance * distance / maxProximityDistance)) * maxAmbientVolume;
+        float targetVolume = Mathf.Clamp01(1f - (distance  / maxProximityDistance)) * maxAmbientVolume;
 
         // Smooth volume transitions
         ambientAudioSource.volume = Mathf.Lerp(ambientAudioSource.volume, targetVolume, Time.deltaTime * 4f);

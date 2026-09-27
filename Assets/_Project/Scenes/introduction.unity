@@ -648,6 +648,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 175407222}
+  - component: {fileID: 175407223}
   m_Layer: 0
   m_Name: Animator
   m_TagString: Untagged
@@ -670,6 +671,20 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 18
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &175407223
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 175407221}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 366817f333b15994b8b8185af4b04d1f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bm: {fileID: 1378930060}
+  wcv: {fileID: 1884861550}
 --- !u!1 &220277822
 GameObject:
   m_ObjectHideFlags: 0
@@ -793,7 +808,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4653185719685688375, guid: 58fb14acf50718e41ae6a15e3600dc0c, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5465328630160258701, guid: 58fb14acf50718e41ae6a15e3600dc0c, type: 3}
       propertyPath: m_RootOrder
@@ -878,7 +893,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1447987709244396459, guid: 64aaa8c698778aa4798fa25e58dd80d1, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2257316659483412753, guid: 64aaa8c698778aa4798fa25e58dd80d1, type: 3}
       propertyPath: m_RootOrder
@@ -2325,10 +2340,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5cb269f7551bdb4089a4a77b40522d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaxNumberOfBoids: 1
+  MaxNumberOfBoids: 100
   numberOfCalamari: 0
   numberOfCrocodiles: 0
-  numberOfFish: 1
+  numberOfFish: 100
   speciesSettings:
   - name: Fish
     preFab: {fileID: 7413577871253316320, guid: 05a2bce6144b53b46a7e38acf9215874, type: 3}
@@ -2342,7 +2357,7 @@ MonoBehaviour:
     avoidWeight: 30
     perceptionRadius: 6
     perceptionRadiusSeparation: 3
-    maxSpeed: 2
+    maxSpeed: 7
     maxForce: 1
     huntWeight: 5
     huntRadius: 15
@@ -2419,8 +2434,8 @@ MonoBehaviour:
   attractDistance: 5
   fishBoundsMargin: 1.5
   obstacleWarningMaterial: {fileID: 2100000, guid: 19b683db5fe9c0c42b20159c1aa3549d, type: 2}
-  showObstacleAvoidance: 0
-  showAllObstacleAvoidance: 0
+  showObstacleAvoidance: 1
+  showAllObstacleAvoidance: 1
   applyCurrents: 0
   currentScale: 0.05
   currentSpeed: 0.2
@@ -2623,7 +2638,7 @@ MonoBehaviour:
   eatClip: {fileID: 0}
   collisionClip: {fileID: 8300000, guid: aeb7afd1e706ca2438cafc4fb5dad5a1, type: 3}
   maxProximityDistance: 40
-  maxAmbientVolume: 0.8
+  maxAmbientVolume: 0.1
   collisionCooldown: 0.06
 --- !u!4 &1421213681
 Transform:
@@ -3015,6 +3030,60 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 10
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1884861549
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1884861551}
+  - component: {fileID: 1884861550}
+  m_Layer: 0
+  m_Name: WorldCoord
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1884861550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1884861549}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c19bc5d3264da64d88955d568fdacc1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  showAxes: 0
+  axisLength: 500
+  axisLineWidth: 0.08
+  dualDirection: 1
+  tickInterval: 5
+  tickLength: 0.5
+  tickLineWidth: 0.04
+  axisColor: {r: 0.85, g: 0.85, b: 0.85, a: 0.25}
+  showOriginMarker: 1
+  originRadius: 0.3
+--- !u!4 &1884861551
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1884861549}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1994.7018, y: 1973.95, z: -21.185877}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 19
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1892241707
 GameObject:
@@ -3527,7 +3596,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1013408517029358778, guid: 85f53eb68888d2c47982f609c7604250, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
